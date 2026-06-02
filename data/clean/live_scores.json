@@ -1,0 +1,102 @@
+{
+  "ATL": {
+    "score": 54.2,
+    "live_flights": 65,
+    "pred_capacity": 1.600000023841858,
+    "weather_penalty": 1.0,
+    "wind_kn": 9.1,
+    "precip_mm": 0.0,
+    "visibility_m": 23000.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "DFW": {
+    "score": 57.6,
+    "live_flights": 49,
+    "pred_capacity": 1.3300000429153442,
+    "weather_penalty": 0.85,
+    "wind_kn": 17.2,
+    "precip_mm": 0.0,
+    "visibility_m": 32000.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "ORD": {
+    "score": 31.1,
+    "live_flights": 28,
+    "pred_capacity": 1.3700000047683716,
+    "weather_penalty": 1.0,
+    "wind_kn": 8.2,
+    "precip_mm": 0.0,
+    "visibility_m": 63800.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "DEN": {
+    "score": 34.7,
+    "live_flights": 28,
+    "pred_capacity": 1.2999999523162842,
+    "weather_penalty": 0.95,
+    "wind_kn": 17.8,
+    "precip_mm": 0.0,
+    "visibility_m": 51000.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "CLT": {
+    "score": 30.0,
+    "live_flights": 15,
+    "pred_capacity": 0.9800000190734863,
+    "weather_penalty": 1.0,
+    "wind_kn": 2.1,
+    "precip_mm": 0.0,
+    "visibility_m": 27200.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "LAX": {
+    "score": 17.5,
+    "live_flights": 14,
+    "pred_capacity": 1.2400000095367432,
+    "weather_penalty": 1.0,
+    "wind_kn": 9.6,
+    "precip_mm": 0.0,
+    "visibility_m": 16300.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "LAS": {
+    "score": 41.4,
+    "live_flights": 29,
+    "pred_capacity": 1.7400000095367432,
+    "weather_penalty": 1.0,
+    "wind_kn": 6.8,
+    "precip_mm": 0.0,
+    "visibility_m": 90000.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "LGA": {
+    "score": 28.6,
+    "live_flights": 20,
+    "pred_capacity": 1.0,
+    "weather_penalty": 1.0,
+    "wind_kn": 6.4,
+    "precip_mm": 0.0,
+    "visibility_m": 71300.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "SEA": {
+    "score": 32.3,
+    "live_flights": 21,
+    "pred_capacity": 1.1100000143051147,
+    "weather_penalty": 1.0,
+    "wind_kn": 4.4,
+    "precip_mm": 0.0,
+    "visibility_m": 80700.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  },
+  "PHX": {
+    "score": 40.0,
+    "live_flights": 26,
+    "pred_capacity": 1.7400000095367432,
+    "weather_penalty": 1.0,
+    "wind_kn": 7.8,
+    "precip_mm": 0.0,
+    "visibility_m": 90000.0,
+    "timestamp": "2026-06-02T22:50:48.282274+00:00"
+  }
+}
