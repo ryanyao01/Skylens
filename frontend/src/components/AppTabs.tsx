@@ -9,11 +9,16 @@ export default function AppTabs() {
         default: { color: "#737373" },
         selected: { color: "#FFFFFF" },
       }}
+      iconColor={{
+        default: "#737373",
+        selected: "#171717",
+      }}
+      rippleColor="transparent"
     >
       <NativeTabs.Trigger name="globe">
         <NativeTabs.Trigger.Label>GLOBE</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/tabIcons/globe.png")}
+          src={require("@/assets/tabIcons/globe.png")}
           renderingMode="template"
         />
       </NativeTabs.Trigger>
@@ -21,7 +26,7 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>AR VIEW</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/tabIcons/airview.png")}
+          src={require("@/assets/tabIcons/airview.png")}
           renderingMode="template"
         />
       </NativeTabs.Trigger>
@@ -29,7 +34,7 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="deepDive">
         <NativeTabs.Trigger.Label>DEEP DIVE</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
-          src={require("@/assets/images/tabIcons/deepdive.png")}
+          src={require("@/assets/tabIcons/deepdive.png")}
           renderingMode="template"
         />
       </NativeTabs.Trigger>
