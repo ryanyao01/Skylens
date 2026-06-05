@@ -16,6 +16,8 @@ AIRPORT_COORDS = {
     "LGA": (40.7772, -73.8726),
     "SEA": (47.4502, -122.3088),
     "PHX": (33.4373, -112.0078),
+    "YOW": (45.3225, -75.6692),
+    "YVR": (49.1967, -123.1815),
 }
 
 def fetch_weather(airport_code: str) -> dict:

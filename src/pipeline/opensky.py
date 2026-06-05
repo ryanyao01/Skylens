@@ -4,7 +4,7 @@ from datetime import datetime
 
 OPENSKY_URL = "https://opensky-network.org/api/states/all"
 
-# top 10 airports with their approximate bounding boxes
+# tracked airports with their approximate bounding boxes
 # format: [lat_min, lat_max, lon_min, lon_max]
 AIRPORT_BOUNDS = {
     "ATL": [33.3, 34.0, -85.0, -84.0],
@@ -17,6 +17,8 @@ AIRPORT_BOUNDS = {
     "LGA": [40.7, 40.9, -74.0, -73.7],
     "SEA": [47.3, 47.7, -122.5, -122.1],
     "PHX": [33.3, 33.6, -112.3, -111.9],
+    "YOW": [45.1, 45.5, -75.9, -75.4],
+    "YVR": [49.0, 49.4, -123.4, -122.9],
 }
 
 def fetch_flights_near_airport(airport_code: str) -> int:
