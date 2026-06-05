@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
     // Shifts the transform origin so the icon sits exactly on the coordinate
     marginLeft: -10,
     marginTop: -10,
+    width: 200,
   },
   flightLabel: {
     position: "absolute",
