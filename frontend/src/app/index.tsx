@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 48, // Adjust for top notch / status bar
     paddingHorizontal: 24,
-    paddingBottom: 100, // Keeps it above your bottom tab bar
+    paddingBottom: 5,
     justifyContent: "space-between",
   },
 
