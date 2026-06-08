@@ -13,8 +13,11 @@ import { BlackButton } from "@/components/BlackButton";
 
 // Conditionally import MapView so it doesn't crash on the Web
 let MapView: any;
+let PROVIDER_GOOGLE: any;
 if (Platform.OS !== "web") {
-  MapView = require("react-native-maps").default;
+  const Maps = require("react-native-maps");
+  MapView = Maps.default || Maps;
+  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
 }
 
 // Flight Marker Component
@@ -62,7 +65,8 @@ export default function GlobeScreen() {
           </View>
         ) : (
           <MapView
-            style={StyleSheet.absoluteFill}
+            provider={PROVIDER_GOOGLE}
+            style={{ height: "100%", width: "100%" }}
             initialRegion={{
               latitude: 37.78825,
               longitude: -122.4324,
@@ -71,11 +75,6 @@ export default function GlobeScreen() {
             }}
           />
         )}
-
-        {/* User Location Dot */}
-        <View style={styles.userLocationOuter}>
-          <View style={styles.userLocationInner} />
-        </View>
 
         {/* Flight Markers */}
         <FlightMarker

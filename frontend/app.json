@@ -11,6 +11,7 @@
       "icon": "./assets/icon.png"
     },
     "android": {
+      "package": "com.skylens.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,15 +31,22 @@
         {
           "backgroundColor": "#208AEF",
           "android": {
-            "image": "./assets/images/splash-icon.png",
+            "image": "./assets/splash-icon.png",
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "react-native-maps"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "28d39816-7de2-4230-b813-1833db8622f3"
+      }
     }
   }
 }
