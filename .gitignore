@@ -1,5 +1,13 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# Ignores data, models and ipynb checkpoints
+data/raw/
+data/clean/
+models/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
 # dependencies
 node_modules/
 
