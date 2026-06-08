@@ -1,7 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
+from pathlib import Path
 import json
+import sys
 import os
+
+sys.path.append(str(Path(__file__).resolve().parents[1] / "pipeline"))
+
+from opensky import fetch_all_airport_counts
+from weather import fetch_all_weather
+from scorer import load_models, compute_scores
+
 
 app = FastAPI(title="SkyLens API")
 
@@ -12,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from pathlib import Path
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -32,30 +42,46 @@ AIRPORT_COORDS = {
     "YOW": {"lat": 45.3225, "lon": -75.6692, "name": "Ottawa"},
 }
 
-@app.get("/airports/scores")
-def get_scores():
-    scores_path = PROJECT_ROOT / "data" / "clean" / "live_scores.json"
-    if scores_path.exists():
-        with open(scores_path) as f:
-            scores = json.load(f)
-        # merge coordinates into each airport's data
-        result = {}
+# in-memory score cache
+score_cache = {}
+models = None
+
+def refresh_scores():
+    global score_cache
+    try:
+        flight_counts = fetch_all_airport_counts()
+        weather = fetch_all_weather()
+        scores = compute_scores(models, flight_counts, weather)
+        # merge coordinates
         for icao, data in scores.items():
             coords = AIRPORT_COORDS.get(icao, {})
-            result[icao] = {**data, **coords}
-        return result
+            scores[icao] = {**data, **coords}
+        score_cache = scores
+        print(f"scores refreshed — {len(scores)} airports")
+    except Exception as e:
+        print(f"score refresh failed: {e}")
+
+@app.on_event("startup")
+def startup():
+    global models
+    models = load_models()
+    refresh_scores()  # run immediately on startup
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(refresh_scores, "interval", seconds=60)
+    scheduler.start()
+
+@app.get("/airports/scores")
+def get_scores():
+    if score_cache:
+        return score_cache
     return {"error": "scores not yet computed"}
 
 @app.get("/airports/{icao}/score")
 def get_airport_score(icao: str):
-    scores_path = PROJECT_ROOT / "data" / "clean" / "live_scores.json"
-    if scores_path.exists():
-        with open(scores_path) as f:
-            scores = json.load(f)
-        if icao.upper() in scores:
-            return scores[icao.upper()]
+    if icao.upper() in score_cache:
+        return score_cache[icao.upper()]
     return {"error": f"airport {icao} not found"}
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "airports_cached": len(score_cache)}
