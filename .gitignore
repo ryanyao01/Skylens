@@ -2,8 +2,9 @@
 
 # Ignores data, models and ipynb checkpoints
 data/raw/
-data/clean/
-models/
+data/clean/*.parquet
+data/clean/live_scores.json
+models/*.pkl
 .venv/
 __pycache__/
 .ipynb_checkpoints/
