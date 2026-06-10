@@ -4,7 +4,7 @@ import json
 import polars as pl
 
 
-ROOT = Path(r"C:\Users\yaoze\Documents\Skylens")
+ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "data" / "clean" / "airport_runtime_profile.json"
 
 model = pl.read_parquet(ROOT / "data" / "clean" / "model_ready.parquet")
