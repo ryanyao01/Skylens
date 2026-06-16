@@ -8,6 +8,7 @@ import numpy as np
 from opensky import fetch_all_airport_counts
 from weather import fetch_all_weather
 
+from cascade import load_propagation, run_all_cascades
 
 # Get the project root regardless of where script is run from.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -159,6 +160,8 @@ def compute_scores(models: dict, flight_counts: dict, weather: dict) -> dict:
     return scores
 
 
+
+
 if __name__ == "__main__":
     print("loading models...")
     models = load_models()
@@ -189,3 +192,13 @@ if __name__ == "__main__":
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(scores, f, indent=2)
     print(f"\nscores saved to {output_path}")
+
+
+    # cascade
+    propagation = load_propagation()
+    all_cascades = run_all_cascades(scores, propagation)
+
+    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
+    with open(cascade_path, "w") as f:
+        json.dump(all_cascades, f, indent=2)
+    print(f"cascade saved — {len(all_cascades)} triggering airports")

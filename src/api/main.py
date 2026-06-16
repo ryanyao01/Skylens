@@ -85,3 +85,21 @@ def get_airport_score(icao: str):
 @app.get("/health")
 def health():
     return {"status": "ok", "airports_cached": len(score_cache)}
+
+@app.get("/forecast/cascade")
+def get_cascade():
+    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
+    if cascade_path.exists():
+        with open(cascade_path) as f:
+            return json.load(f)
+    return {"error": "cascade forecast not yet computed"}
+
+@app.get("/forecast/cascade/{icao}")
+def get_airport_cascade(icao: str):
+    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
+    if cascade_path.exists():
+        with open(cascade_path) as f:
+            data = json.load(f)
+        if icao.upper() in data:
+            return data[icao.upper()]
+    return {"error": f"no cascade data for {icao}"}
