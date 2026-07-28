@@ -36,6 +36,41 @@ for row in hist_rows:
     key = f"{row['DEST']}|{int(row['day_of_week'])}|{int(row['arr_hour'])}"
     hist_by_slot[key] = float(row["hist_mean"])
 
+INTERNATIONAL_FALLBACKS = {
+    "HND": {"hist_mean_arrivals": 3.8, "peak_capacity": 7.0,
+            "note": "Manual fallback: no training history; sized from public Haneda movement stats."},
+    "NRT": {"hist_mean_arrivals": 3.0, "peak_capacity": 5.8,
+            "note": "Manual fallback: no training history; sized from public Narita movement stats."},
+    "KIX": {"hist_mean_arrivals": 1.8, "peak_capacity": 3.5,
+            "note": "Manual fallback: no training history; smaller of the two Osaka-area international hubs."},
+    "PVG": {"hist_mean_arrivals": 3.2, "peak_capacity": 6.2,
+            "note": "Manual fallback: no training history; major China international hub."},
+    "LHR": {"hist_mean_arrivals": 3.9, "peak_capacity": 7.3,
+            "note": "Manual fallback: no training history; one of the world's busiest international hubs."},
+    "CDG": {"hist_mean_arrivals": 3.4, "peak_capacity": 6.5,
+            "note": "Manual fallback: no training history; major European hub."},
+    "FRA": {"hist_mean_arrivals": 3.2, "peak_capacity": 6.2,
+            "note": "Manual fallback: no training history; major European hub."},
+    "AMS": {"hist_mean_arrivals": 2.9, "peak_capacity": 5.6,
+            "note": "Manual fallback: no training history; major European hub."},
+    "DXB": {"hist_mean_arrivals": 3.5, "peak_capacity": 6.8,
+            "note": "Manual fallback: no training history; major Middle East hub."},
+    "SIN": {"hist_mean_arrivals": 2.6, "peak_capacity": 5.0,
+            "note": "Manual fallback: no training history; major Southeast Asia hub."},
+    "ICN": {"hist_mean_arrivals": 2.9, "peak_capacity": 5.6,
+            "note": "Manual fallback: no training history; major East Asia hub."},
+    "SYD": {"hist_mean_arrivals": 2.2, "peak_capacity": 4.3,
+            "note": "Manual fallback: no training history; primary Australian gateway."},
+    "YYZ": {"hist_mean_arrivals": 2.7, "peak_capacity": 5.2,
+            "note": "Manual fallback: no training history; primary Canadian gateway alongside YVR."},
+}
+
+INTERNATIONAL_LIVE_PEAK_COUNTS = {
+    "HND": 100, "NRT": 85, "KIX": 55, "PVG": 90,
+    "LHR": 110, "CDG": 95, "FRA": 90, "AMS": 80,
+    "DXB": 100, "SIN": 75, "ICN": 85, "SYD": 65, "YYZ": 80,
+}
+
 profile = {
     "schema_version": 1,
     "generated_from": {
