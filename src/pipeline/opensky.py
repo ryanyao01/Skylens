@@ -1,6 +1,32 @@
 import requests
 import time
 from datetime import datetime
+import json
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OBSERVATIONS_PATH = PROJECT_ROOT / "data" / "clean" / "live_peak_observations.json"
+
+def load_peak_observations() -> dict:
+    try:
+        with open(OBSERVATIONS_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def update_peak_observations(counts: dict) -> dict:
+    observations = load_peak_observations()
+    for airport, count in counts.items():
+        if airport == "timestamp":
+            continue
+        if airport not in observations:
+            observations[airport] = {"peak": 0, "observations": 0}
+        if count > observations[airport]["peak"]:
+            observations[airport]["peak"] = count
+        observations[airport]["observations"] += 1
+    with open(OBSERVATIONS_PATH, "w", encoding="utf-8") as f:
+        json.dump(observations, f, indent=2)
+    return observations
 
 OPENSKY_URL = "https://opensky-network.org/api/states/all"
 

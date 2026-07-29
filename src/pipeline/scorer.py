@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from opensky import fetch_all_airport_counts
+from opensky import fetch_all_airport_counts, update_peak_observations
 from weather import fetch_all_weather
 
 from cascade import load_propagation, run_all_cascades
@@ -88,7 +88,7 @@ def weather_penalty(w: dict) -> float:
     return max(penalty, 0.5)
 
 
-def compute_scores(models: dict, flight_counts: dict, weather: dict) -> dict:
+def compute_scores(models: dict, flight_counts: dict, weather: dict, peak_observations: dict) -> dict:
     profile = load_airport_profile()
     now = datetime.now(timezone.utc)
     hour = now.hour
@@ -127,7 +127,10 @@ def compute_scores(models: dict, flight_counts: dict, weather: dict) -> dict:
 
         # OpenSky count is live aircraft density, not arrivals per 15-minute slot.
         live_count = flight_counts.get(airport, 0)
-        peak_count = profile["live_peak_counts"][airport]
+        baseline_peak = profile["live_peak_counts"].get(airport, 50)
+        observed_peak = peak_observations.get(airport, {}).get("peak", 0)
+        peak_count = max(baseline_peak, observed_peak)
+        peak_source = "observed" if observed_peak > baseline_peak else "baseline"
         effective_peak = peak_count * penalty
         raw_score = (live_count / effective_peak) * 100
         score = min(round(raw_score, 1), 100)
@@ -146,6 +149,7 @@ def compute_scores(models: dict, flight_counts: dict, weather: dict) -> dict:
             "hist_mean_arrivals": float(round(hist_mean, 2)),
             "offline_peak_capacity": float(round(offline_peak, 2)),
             "live_peak_count": int(peak_count),
+            "peak_source": peak_source,
             "weather_penalty": float(round(penalty, 2)),
             "wind_kn": float(w.get("wind_speed_kn", 0)),
             "precip_mm": float(w.get("precipitation_mm", 0)),
@@ -168,10 +172,11 @@ if __name__ == "__main__":
 
     print("fetching live data...")
     flight_counts = fetch_all_airport_counts()
+    peak_observations = update_peak_observations(flight_counts)
     weather = fetch_all_weather()
 
     print("computing scores...")
-    scores = compute_scores(models, flight_counts, weather)
+    scores = compute_scores(models, flight_counts, weather, peak_observations)
 
     print("\n--- live imbalance scores ---")
     for airport, data in sorted(

@@ -106,8 +106,10 @@ profile = {
             "peak_capacity": 6.0,
             "note": "Manual fallback: no Kaggle training history; roughly half of public YVR runway movement average, with busy-period headroom.",
         },
+        **INTERNATIONAL_FALLBACKS,
     },
 }
+profile["live_peak_counts"].update(INTERNATIONAL_LIVE_PEAK_COUNTS)
 
 OUT.write_text(json.dumps(profile, indent=2), encoding="utf-8")
 print(f"Wrote {OUT}")
