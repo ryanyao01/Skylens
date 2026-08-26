@@ -1,0 +1,234 @@
+{
+  "ATL": {
+    "peak": 77,
+    "observations": 2
+  },
+  "DFW": {
+    "peak": 75,
+    "observations": 2
+  },
+  "ORD": {
+    "peak": 25,
+    "observations": 2
+  },
+  "DEN": {
+    "peak": 44,
+    "observations": 2
+  },
+  "CLT": {
+    "peak": 21,
+    "observations": 2
+  },
+  "LAX": {
+    "peak": 20,
+    "observations": 2
+  },
+  "LAS": {
+    "peak": 39,
+    "observations": 2
+  },
+  "LGA": {
+    "peak": 20,
+    "observations": 2
+  },
+  "SEA": {
+    "peak": 39,
+    "observations": 2
+  },
+  "PHX": {
+    "peak": 41,
+    "observations": 2
+  },
+  "YOW": {
+    "peak": 2,
+    "observations": 2
+  },
+  "YVR": {
+    "peak": 34,
+    "observations": 2
+  },
+  "JFK": {
+    "peak": 61,
+    "observations": 2
+  },
+  "MIA": {
+    "peak": 68,
+    "observations": 2
+  },
+  "BOS": {
+    "peak": 43,
+    "observations": 2
+  },
+  "MSP": {
+    "peak": 41,
+    "observations": 2
+  },
+  "DTW": {
+    "peak": 20,
+    "observations": 2
+  },
+  "PHL": {
+    "peak": 26,
+    "observations": 2
+  },
+  "BWI": {
+    "peak": 24,
+    "observations": 2
+  },
+  "SLC": {
+    "peak": 40,
+    "observations": 2
+  },
+  "SAN": {
+    "peak": 31,
+    "observations": 2
+  },
+  "IAD": {
+    "peak": 44,
+    "observations": 2
+  },
+  "STL": {
+    "peak": 14,
+    "observations": 2
+  },
+  "MCI": {
+    "peak": 8,
+    "observations": 2
+  },
+  "CVG": {
+    "peak": 12,
+    "observations": 2
+  },
+  "IND": {
+    "peak": 26,
+    "observations": 2
+  },
+  "CLE": {
+    "peak": 13,
+    "observations": 2
+  },
+  "PIT": {
+    "peak": 19,
+    "observations": 2
+  },
+  "MKE": {
+    "peak": 9,
+    "observations": 2
+  },
+  "RDU": {
+    "peak": 18,
+    "observations": 2
+  },
+  "AUS": {
+    "peak": 40,
+    "observations": 2
+  },
+  "SAT": {
+    "peak": 24,
+    "observations": 2
+  },
+  "MDW": {
+    "peak": 33,
+    "observations": 2
+  },
+  "TPA": {
+    "peak": 37,
+    "observations": 2
+  },
+  "MCO": {
+    "peak": 56,
+    "observations": 2
+  },
+  "FLL": {
+    "peak": 54,
+    "observations": 2
+  },
+  "DCA": {
+    "peak": 30,
+    "observations": 2
+  },
+  "EWR": {
+    "peak": 78,
+    "observations": 2
+  },
+  "HNL": {
+    "peak": 3,
+    "observations": 2
+  },
+  "PDX": {
+    "peak": 19,
+    "observations": 2
+  },
+  "SMF": {
+    "peak": 18,
+    "observations": 2
+  },
+  "OAK": {
+    "peak": 35,
+    "observations": 2
+  },
+  "SJC": {
+    "peak": 16,
+    "observations": 2
+  },
+  "BNA": {
+    "peak": 23,
+    "observations": 2
+  },
+  "MSY": {
+    "peak": 13,
+    "observations": 2
+  },
+  "HND": {
+    "peak": 10,
+    "observations": 2
+  },
+  "NRT": {
+    "peak": 2,
+    "observations": 2
+  },
+  "KIX": {
+    "peak": 3,
+    "observations": 2
+  },
+  "PVG": {
+    "peak": 0,
+    "observations": 2
+  },
+  "LHR": {
+    "peak": 31,
+    "observations": 2
+  },
+  "CDG": {
+    "peak": 40,
+    "observations": 2
+  },
+  "FRA": {
+    "peak": 20,
+    "observations": 2
+  },
+  "AMS": {
+    "peak": 22,
+    "observations": 2
+  },
+  "DXB": {
+    "peak": 8,
+    "observations": 2
+  },
+  "SIN": {
+    "peak": 11,
+    "observations": 2
+  },
+  "ICN": {
+    "peak": 8,
+    "observations": 2
+  },
+  "SYD": {
+    "peak": 2,
+    "observations": 2
+  },
+  "YYZ": {
+    "peak": 48,
+    "observations": 2
+  }
+}
