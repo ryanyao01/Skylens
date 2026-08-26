@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from opensky import fetch_all_airport_counts, update_peak_observations
+from opensky import extract_count, fetch_all_airport_counts, update_peak_observations
 from weather import fetch_all_weather
 
 from cascade import load_propagation, run_all_cascades
@@ -88,7 +88,15 @@ def weather_penalty(w: dict) -> float:
     return max(penalty, 0.5)
 
 
-def compute_scores(models: dict, flight_counts: dict, weather: dict, peak_observations: dict) -> dict:
+def compute_scores(
+    models: dict,
+    flight_counts: dict,
+    weather: dict,
+    peak_observations: dict | None = None,
+) -> dict:
+    if peak_observations is None:
+        peak_observations = {}
+
     profile = load_airport_profile()
     now = datetime.now(timezone.utc)
     hour = now.hour
@@ -126,7 +134,8 @@ def compute_scores(models: dict, flight_counts: dict, weather: dict, peak_observ
         adjusted_capacity = pred_q50 * penalty
 
         # OpenSky count is live aircraft density, not arrivals per 15-minute slot.
-        live_count = flight_counts.get(airport, 0)
+        live_count = extract_count(flight_counts.get(airport, 0))
+        live_metadata = flight_counts.get("_metadata", {}).get(airport, {})
         baseline_peak = profile["live_peak_counts"].get(airport, 50)
         observed_peak = peak_observations.get(airport, {}).get("peak", 0)
         peak_count = max(baseline_peak, observed_peak)
@@ -156,6 +165,8 @@ def compute_scores(models: dict, flight_counts: dict, weather: dict, peak_observ
             "visibility_m": float(w.get("visibility_m", 10000)),
             "model_trained": bool(is_model_trained),
             "scoring_basis": "opensky_density_vs_live_peak_count",
+            "live_data_status": live_metadata.get("status", "unknown"),
+            "live_data_message": live_metadata.get("message", ""),
             "timestamp": now.isoformat(),
         }
         if fallback_info:

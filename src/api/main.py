@@ -8,7 +8,7 @@ import os
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "pipeline"))
 
-from opensky import fetch_all_airport_counts
+from opensky import fetch_all_airport_counts, update_peak_observations
 from weather import fetch_all_weather
 from scorer import load_models, compute_scores
 from cascade import load_propagation, run_all_cascades
@@ -92,13 +92,15 @@ AIRPORT_COORDS = {
 # in-memory score cache
 score_cache = {}
 models = None
+REFRESH_INTERVAL_SECONDS = int(os.getenv("SKYLENS_REFRESH_SECONDS", "900"))
 
 def refresh_scores():
     global score_cache
     try:
         flight_counts = fetch_all_airport_counts()
+        peak_observations = update_peak_observations(flight_counts)
         weather = fetch_all_weather()
-        scores = compute_scores(models, flight_counts, weather)
+        scores = compute_scores(models, flight_counts, weather, peak_observations)
         # merge coordinates
         for icao, data in scores.items():
             coords = AIRPORT_COORDS.get(icao, {})
@@ -121,7 +123,13 @@ def startup():
     models = load_models()
     refresh_scores()  # run immediately on startup
     scheduler = BackgroundScheduler()
-    scheduler.add_job(refresh_scores, "interval", seconds=60)
+    scheduler.add_job(
+        refresh_scores,
+        "interval",
+        seconds=REFRESH_INTERVAL_SECONDS,
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
 
 @app.get("/airports/scores")

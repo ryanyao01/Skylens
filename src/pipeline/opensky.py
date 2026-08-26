@@ -16,9 +16,14 @@ def load_peak_observations() -> dict:
 
 def update_peak_observations(counts: dict) -> dict:
     observations = load_peak_observations()
+    metadata = counts.get("_metadata", {})
     for airport, count in counts.items():
-        if airport == "timestamp":
+        if airport == "timestamp" or airport.startswith("_"):
             continue
+        status = metadata.get(airport, {}).get("status")
+        if status and status != "ok":
+            continue
+        count = extract_count(count)
         if airport not in observations:
             observations[airport] = {"peak": 0, "observations": 0}
         if count > observations[airport]["peak"]:
@@ -95,33 +100,77 @@ AIRPORT_BOUNDS = {
     "YYZ": [43.38, 43.98, -79.98, -79.28],
 }
 
-def fetch_flights_near_airport(airport_code: str) -> int:
+
+def extract_count(value) -> int:
+    if isinstance(value, dict):
+        return int(value.get("count", 0) or 0)
+    return int(value or 0)
+
+
+def fetch_airport_state_count(airport_code: str) -> dict:
     bounds = AIRPORT_BOUNDS[airport_code]
     params = {
         "lamin": bounds[0],
         "lamax": bounds[1],
         "lomin": bounds[2],
-        "lomax": bounds[3]
+        "lomax": bounds[3],
     }
     try:
         response = requests.get(OPENSKY_URL, params=params, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            states = data.get("states", []) or []
-            return len(states)
-        else:
-            print(f"{airport_code}: API error {response.status_code}")
-            return 0
+        if response.status_code != 200:
+            message = f"OpenSky API returned HTTP {response.status_code}"
+            print(f"{airport_code}: {message}")
+            return {
+                "count": 0,
+                "status": "api_error",
+                "message": message,
+            }
+
+        data = response.json()
+        states = data.get("states")
+        if states is None:
+            return {
+                "count": 0,
+                "status": "no_states",
+                "message": (
+                    "OpenSky returned no state vectors for this bounding box; "
+                    "this can mean true inactivity or incomplete receiver coverage."
+                ),
+                "api_time": data.get("time"),
+            }
+
+        return {
+            "count": len(states),
+            "status": "ok",
+            "message": "OpenSky returned state vectors for this bounding box.",
+            "api_time": data.get("time"),
+        }
     except Exception as e:
-        print(f"{airport_code}: {e}")
-        return 0
+        message = str(e)
+        print(f"{airport_code}: {message}")
+        return {
+            "count": 0,
+            "status": "network_error",
+            "message": message,
+        }
+
+def fetch_flights_near_airport(airport_code: str) -> int:
+    return fetch_airport_state_count(airport_code)["count"]
 
 def fetch_all_airport_counts() -> dict:
     counts = {}
+    metadata = {}
     for airport in AIRPORT_BOUNDS:
-        counts[airport] = fetch_flights_near_airport(airport)
+        result = fetch_airport_state_count(airport)
+        counts[airport] = result["count"]
+        metadata[airport] = {
+            key: value
+            for key, value in result.items()
+            if key != "count"
+        }
         time.sleep(0.5)  # avoid rate limiting
     counts["timestamp"] = datetime.utcnow().isoformat()
+    counts["_metadata"] = metadata
     return counts
 
 if __name__ == "__main__":
