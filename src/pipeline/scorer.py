@@ -199,6 +199,7 @@ if __name__ == "__main__":
         print(f"{airport}  {data['score']:5.1f}  {bar}")
         print(
             f"       flights={data['live_flights']} "
+            f"source={data['live_data_status']} "
             f"capacity={data['pred_capacity']} "
             f"weather={data['weather_penalty']} "
             f"wind={data['wind_kn']}kn"

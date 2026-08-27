@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from datetime import datetime, timezone
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from pathlib import Path
@@ -91,11 +92,16 @@ AIRPORT_COORDS = {
 
 # in-memory score cache
 score_cache = {}
+cascade_cache = {}
+last_refresh_at = None
+last_refresh_error = None
 models = None
+scheduler = None
 REFRESH_INTERVAL_SECONDS = int(os.getenv("SKYLENS_REFRESH_SECONDS", "900"))
+WRITE_RUNTIME_JSON = os.getenv("SKYLENS_WRITE_RUNTIME_JSON", "0") == "1"
 
 def refresh_scores():
-    global score_cache
+    global score_cache, cascade_cache, last_refresh_at, last_refresh_error
     try:
         flight_counts = fetch_all_airport_counts()
         peak_observations = update_peak_observations(flight_counts)
@@ -108,20 +114,23 @@ def refresh_scores():
         score_cache = scores
         
         propagation = load_propagation()
-        cascades = run_all_cascades(scores, propagation)
-        cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
-        with open(cascade_path, "w") as f:
-            json.dump(cascades, f, indent=2)
+        cascade_cache = run_all_cascades(scores, propagation)
+        if WRITE_RUNTIME_JSON:
+            cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
+            with open(cascade_path, "w") as f:
+                json.dump(cascade_cache, f, indent=2)
         
+        last_refresh_at = datetime.now(timezone.utc).isoformat()
+        last_refresh_error = None
         print(f"scores refreshed — {len(scores)} airports")
     except Exception as e:
-        print(f"score refresh failed: {e}")
+        last_refresh_error = str(e)
+        print(f"score refresh failed: {last_refresh_error}")
 
 @app.on_event("startup")
 def startup():
-    global models
+    global models, scheduler
     models = load_models()
-    refresh_scores()  # run immediately on startup
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         refresh_scores,
@@ -129,39 +138,47 @@ def startup():
         seconds=REFRESH_INTERVAL_SECONDS,
         max_instances=1,
         coalesce=True,
+        next_run_time=datetime.now(timezone.utc),
     )
     scheduler.start()
+
+
+@app.on_event("shutdown")
+def shutdown():
+    if scheduler:
+        scheduler.shutdown(wait=False)
 
 @app.get("/airports/scores")
 def get_scores():
     if score_cache:
         return score_cache
-    return {"error": "scores not yet computed"}
+    raise HTTPException(status_code=503, detail="scores not yet computed")
 
 @app.get("/airports/{icao}/score")
 def get_airport_score(icao: str):
     if icao.upper() in score_cache:
         return score_cache[icao.upper()]
-    return {"error": f"airport {icao} not found"}
+    raise HTTPException(status_code=404, detail=f"airport {icao} not found")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "airports_cached": len(score_cache)}
+    return {
+        "status": "ok" if score_cache and not last_refresh_error else "degraded",
+        "airports_cached": len(score_cache),
+        "cascade_airports_cached": len(cascade_cache),
+        "last_refresh_at": last_refresh_at,
+        "last_refresh_error": last_refresh_error,
+        "refresh_interval_seconds": REFRESH_INTERVAL_SECONDS,
+    }
 
 @app.get("/forecast/cascade")
 def get_cascade():
-    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
-    if cascade_path.exists():
-        with open(cascade_path) as f:
-            return json.load(f)
-    return {"error": "cascade forecast not yet computed"}
+    if cascade_cache:
+        return cascade_cache
+    raise HTTPException(status_code=503, detail="cascade forecast not yet computed")
 
 @app.get("/forecast/cascade/{icao}")
 def get_airport_cascade(icao: str):
-    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
-    if cascade_path.exists():
-        with open(cascade_path) as f:
-            data = json.load(f)
-        if icao.upper() in data:
-            return data[icao.upper()]
-    return {"error": f"no cascade data for {icao}"}
+    if icao.upper() in cascade_cache:
+        return cascade_cache[icao.upper()]
+    raise HTTPException(status_code=404, detail=f"no cascade data for {icao}")

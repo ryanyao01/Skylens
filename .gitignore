@@ -3,10 +3,13 @@
 # Ignores data, models and ipynb checkpoints
 data/raw/
 data/clean/*.parquet
+data/clean/cascade_forecast.json
+data/clean/live_peak_observations.json
 data/clean/live_scores.json
 models/*.pkl
 .venv/
 __pycache__/
+*.pyc
 .ipynb_checkpoints/
 
 # dependencies
