@@ -1,8 +1,51 @@
 import requests
 import time
 from datetime import datetime
+from datetime import timedelta
 import json
 from pathlib import Path
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
+CLIENT_ID = os.getenv("OPENSKY_CLIENT_ID")
+CLIENT_SECRET = os.getenv("OPENSKY_CLIENT_SECRET")
+TOKEN_REFRESH_MARGIN = 30  # seconds before expiration to refresh the token
+
+class TokenManager:
+    def __init__(self):
+        self.token = None
+        self.expires_at = None
+
+    def get_token(self):
+        if self.token and self.expires_at and datetime.utcnow() < self.expires_at:
+            return self.token
+        return self._refresh()
+
+    def _refresh(self):
+        r = requests.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+        self.token = data["access_token"]
+        expires_in = data.get("expires_in", 1800)
+        self.expires_at = datetime.utcnow() + timedelta(seconds=expires_in - TOKEN_REFRESH_MARGIN)
+        return self.token
+
+    def headers(self):
+        return {"Authorization": f"Bearer {self.get_token()}"}
+
+
+tokens = TokenManager()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OBSERVATIONS_PATH = PROJECT_ROOT / "data" / "clean" / "live_peak_observations.json"
@@ -116,7 +159,7 @@ def fetch_airport_state_count(airport_code: str) -> dict:
         "lomax": bounds[3],
     }
     try:
-        response = requests.get(OPENSKY_URL, params=params, timeout=10)
+        response = requests.get(OPENSKY_URL, params=params, headers=tokens.headers(), timeout=10)
         if response.status_code != 200:
             message = f"OpenSky API returned HTTP {response.status_code}"
             print(f"{airport_code}: {message}")
