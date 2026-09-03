@@ -1,103 +1,122 @@
-import React from "react";
 import {
+  Modal,
+  Pressable,
   View,
   Text,
   TextInput,
   StyleSheet,
-  DimensionValue,
-  Platform,
 } from "react-native";
-import { Search, Funnel, Plane } from "lucide-react-native";
-
+import { Search, Funnel } from "lucide-react-native";
+import MapView, { Marker } from "react-native-maps";
 import { BlackButton } from "@/components/BlackButton";
+import { useEffect, useState } from "react";
 
-// Conditionally import MapView so it doesn't crash on the Web
-let MapView: any;
-let PROVIDER_GOOGLE: any;
-if (Platform.OS !== "web") {
-  const Maps = require("react-native-maps");
-  MapView = Maps.default || Maps;
-  PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_URL ?? "http://127.0.0.1:8080"
+).replace(/\/$/, "");
+
+interface AirportInfo {
+  score: number;
+  live_flights: number;
+  pred_capacity: number;
+  hist_mean_arrivals: number;
+  offline_peak_capacity: number;
+  live_peak_count: number;
+  peak_source: string;
+  weather_penalty: number;
+  wind_kn: number;
+  precip_mm: number;
+  visibility_m: number;
+  model_trained: boolean;
+  scoring_basis: string;
+  live_data_status: string;
+  live_data_message: string;
+  timestamp: string;
+  lat: number;
+  lon: number;
+  name: string;
 }
 
-// Flight Marker Component
-// TODO: Replace markers with <Marker> components from react-native-maps
-interface FlightMarkerProps {
-  top: DimensionValue;
-  left: DimensionValue;
-  rotation: number;
-  flightNum: string;
-  altitude: string;
-}
+type AirportData = Record<string, AirportInfo>;
 
-const FlightMarker: React.FC<FlightMarkerProps> = ({
-  top,
-  left,
-  rotation,
-  flightNum,
-  altitude,
-}) => {
-  return (
-    <View style={[styles.markerContainer, { top, left }]}>
-      {/* Flight Info Popup */}
-      <View style={styles.flightLabel}>
-        <Text style={styles.flightNumText}>{flightNum}</Text>
-        <Text style={styles.altitudeText}>{altitude}</Text>
-      </View>
+const fetchAirportData = async (signal: AbortSignal): Promise<AirportData> => {
+  const response = await fetch(`${API_BASE_URL}/airports/scores`, { signal });
+  if (!response.ok) {
+    throw new Error(`HTTP error! Status: ${response.status}`);
+  }
 
-      {/* Plane Icon rotated to match flight path */}
-      <View style={{ transform: [{ rotate: `${rotation}deg` }] }}>
-        <Plane color="#00D3F2" size={20} strokeWidth={2} />
-      </View>
-    </View>
-  );
+  return response.json();
 };
 
 export default function GlobeScreen() {
+  const [airportData, setAirportData] = useState<AirportData>({});
+  const [airportDataError, setAirportDataError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadAirportData = async () => {
+      try {
+        const data = await fetchAirportData(controller.signal);
+        setAirportData(data);
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          setAirportDataError(error.message);
+        }
+      }
+    };
+
+    loadAirportData();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
-      <View style={styles.mapBase}>
-        {Platform.OS === "web" ? (
-          <View style={[StyleSheet.absoluteFill, styles.webMapPlaceholder]}>
-            <Text style={styles.webMapText}>
-              Map view is available on iOS & Android
-            </Text>
+      <Modal
+        visible={airportDataError !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAirportDataError(null)}
+      >
+        <View style={styles.dialogBackdrop}>
+          <View style={styles.dialog}>
+            <Text style={styles.dialogTitle}>Unable to load airports</Text>
+            <Text style={styles.dialogMessage}>{airportDataError}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAirportDataError(null)}
+              style={({ pressed }) => [
+                styles.dialogButton,
+                pressed && styles.dialogButtonPressed,
+              ]}
+            >
+              <Text style={styles.dialogButtonText}>Close</Text>
+            </Pressable>
           </View>
-        ) : (
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={{ height: "100%", width: "100%" }}
-            initialRegion={{
-              latitude: 37.78825,
-              longitude: -122.4324,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
-            }}
-          />
-        )}
-
-        {/* Flight Markers */}
-        <FlightMarker
-          top="27.41%"
-          left="29.23%"
-          rotation={45}
-          flightNum="DL402"
-          altitude="32,000 FT"
-        />
-        <FlightMarker
-          top="21.67%"
-          left="49.97%"
-          rotation={-90}
-          flightNum="BA112"
-          altitude="36,000 FT"
-        />
-        <FlightMarker
-          top="30.56%"
-          left="88.61%"
-          rotation={180}
-          flightNum="JL005"
-          altitude="34,000 FT"
-        />
+        </View>
+      </Modal>
+      <View style={styles.mapBase}>
+        <MapView
+          style={{ height: "100%", width: "100%" }}
+          initialRegion={{
+            latitude: 39.3017,
+            longitude: -94.7139,
+            latitudeDelta: 10,
+            longitudeDelta: 10,
+          }}
+        >
+          {Object.entries(airportData).map(([code, airport]) => (
+            <Marker
+              key={code}
+              title={airport.name}
+              description={`Airport Code: ${code} | Score: ${airport.score}`}
+              coordinate={{ latitude: airport.lat, longitude: airport.lon }}
+            />
+          ))}
+        </MapView>
       </View>
 
       {/* Floating Search Header */}
@@ -130,79 +149,56 @@ export default function GlobeScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Main Layout
   container: {
     flex: 1,
     backgroundColor: "#0A0A0A",
   },
   mapBase: {
     flex: 1,
-    // Add background image here
   },
-  webMapPlaceholder: {
+  dialogBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  dialog: {
+    width: "100%",
+    maxWidth: 360,
     backgroundColor: "#171717",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  webMapText: {
-    color: "#737373",
-    fontSize: 14,
-  },
-
-  // User Location Dot
-  userLocationOuter: {
-    position: "absolute",
-    top: "49.29%",
-    left: "49.58%",
-    width: 16,
-    height: 16,
-    backgroundColor: "rgba(43, 127, 255, 0.75)",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userLocationInner: {
-    width: 16,
-    height: 16,
-    backgroundColor: "#2B7FFF",
-    borderColor: "#FFFFFF",
-    borderWidth: 2,
-    borderRadius: 8,
-  },
-
-  // Flight Markers
-  markerContainer: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    // Shifts the transform origin so the icon sits exactly on the coordinate
-    marginLeft: -10,
-    marginTop: -10,
-    width: 200,
-  },
-  flightLabel: {
-    position: "absolute",
-    top: 24, // Drops it below the plane icon
-    backgroundColor: "rgba(23, 23, 23, 0.9)",
-    borderColor: "#262626",
+    borderColor: "#3A3A3A",
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 8,
-    alignItems: "center",
-    opacity: 1,
+    borderRadius: 16,
+    padding: 24,
   },
-  flightNumText: {
+  dialogTitle: {
     color: "#FFFFFF",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8,
   },
-  altitudeText: {
-    color: "#00D3F2",
-    fontSize: 10,
-    lineHeight: 15,
+  dialogMessage: {
+    color: "#A1A1A1",
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 20,
   },
-
-  // Top Search Header
+  dialogButton: {
+    alignSelf: "flex-end",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  dialogButtonPressed: {
+    opacity: 0.75,
+  },
+  dialogButtonText: {
+    color: "#0A0A0A",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   headerContainer: {
     position: "absolute",
     top: 0,
