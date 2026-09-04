@@ -6,10 +6,10 @@ import {
   TextInput,
   StyleSheet,
 } from "react-native";
-import { Search, Funnel } from "lucide-react-native";
+import { Search, Funnel, RefreshCw } from "lucide-react-native";
 import MapView, { Marker } from "react-native-maps";
 import { BlackButton } from "@/components/BlackButton";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL ?? "http://127.0.0.1:8080"
@@ -52,27 +52,40 @@ const fetchAirportData = async (signal: AbortSignal): Promise<AirportData> => {
 export default function GlobeScreen() {
   const [airportData, setAirportData] = useState<AirportData>({});
   const [airportDataError, setAirportDataError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadAirportData = useCallback(async (signal: AbortSignal) => {
+    try {
+      const data = await fetchAirportData(signal);
+      setAirportData(data);
+      setAirportDataError(null);
+    } catch (error) {
+      if (error instanceof Error && error.name !== "AbortError") {
+        setAirportDataError(error.message);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    const loadAirportData = async () => {
-      try {
-        const data = await fetchAirportData(controller.signal);
-        setAirportData(data);
-      } catch (error) {
-        if (error instanceof Error && error.name !== "AbortError") {
-          setAirportDataError(error.message);
-        }
-      }
-    };
-
-    loadAirportData();
+    loadAirportData(controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [loadAirportData]);
+
+  const refreshAirportData = async () => {
+    const controller = new AbortController();
+    setIsRefreshing(true);
+
+    try {
+      await loadAirportData(controller.signal);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -141,6 +154,13 @@ export default function GlobeScreen() {
               onPress={() => {
                 console.log("Filter button pressed");
               }}
+            />
+          </View>
+          <View style={styles.filterButtonContainer}>
+            <BlackButton
+              disabled={isRefreshing}
+              icon={RefreshCw}
+              onPress={refreshAirportData}
             />
           </View>
         </View>

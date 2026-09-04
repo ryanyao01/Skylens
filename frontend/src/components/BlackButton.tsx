@@ -9,19 +9,23 @@ import { LucideIcon } from "lucide-react-native";
 
 interface BlackButtonProps {
   icon?: LucideIcon;
+  disabled?: boolean;
   onPress?: (event: GestureResponderEvent) => void;
 }
 
 export const BlackButton: React.FC<BlackButtonProps> = ({
   onPress,
   icon: Icon,
+  disabled = false,
 }) => {
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.baseContainer,
         pressed ? styles.pressedContainer : styles.defaultContainer,
+        disabled && styles.disabledContainer,
       ]}
     >
       {({ pressed }) => (
@@ -71,6 +75,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     width: 40,
     height: 36,
+  },
+  disabledContainer: {
+    opacity: 0.55,
   },
   pressedIconWrapper: {
     width: 18,
