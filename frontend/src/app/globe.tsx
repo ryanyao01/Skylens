@@ -39,6 +39,7 @@ interface AirportInfo {
 
 type AirportData = Record<string, AirportInfo>;
 
+// TODO: Fetch airport data continuously in the background
 const fetchAirportData = async (signal: AbortSignal): Promise<AirportData> => {
   const response = await fetch(`${API_BASE_URL}/airports/scores`, { signal });
   if (!response.ok) {
