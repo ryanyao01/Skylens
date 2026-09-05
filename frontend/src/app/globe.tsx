@@ -6,7 +6,7 @@ import {
   TextInput,
   StyleSheet,
 } from "react-native";
-import { Search, Funnel, RefreshCw } from "lucide-react-native";
+import { Search, Funnel, Plane, RefreshCw } from "lucide-react-native";
 import MapView, { Marker } from "react-native-maps";
 import { BlackButton } from "@/components/BlackButton";
 import { useCallback, useEffect, useState } from "react";
@@ -38,6 +38,31 @@ interface AirportInfo {
 }
 
 type AirportData = Record<string, AirportInfo>;
+
+const interpolateColor = (
+  start: [number, number, number],
+  end: [number, number, number],
+  amount: number,
+) =>
+  `rgb(${start
+    .map((channel, index) =>
+      Math.round(channel + (end[index] - channel) * amount),
+    )
+    .join(", ")})`;
+
+const getScoreColor = (score: number) => {
+  const normalizedScore = Math.max(0, Math.min(score, 100)) / 100;
+
+  if (normalizedScore <= 0.5) {
+    return interpolateColor([110, 20, 20], [245, 158, 11], normalizedScore * 2);
+  }
+
+  return interpolateColor(
+    [245, 158, 11],
+    [57, 255, 112],
+    (normalizedScore - 0.5) * 2,
+  );
+};
 
 // TODO: Fetch airport data continuously in the background
 const fetchAirportData = async (signal: AbortSignal): Promise<AirportData> => {
@@ -128,7 +153,16 @@ export default function GlobeScreen() {
               title={airport.name}
               description={`Airport Code: ${code} | Score: ${airport.score}`}
               coordinate={{ latitude: airport.lat, longitude: airport.lon }}
-            />
+            >
+              <View
+                style={[
+                  styles.marker,
+                  { backgroundColor: getScoreColor(airport.score) },
+                ]}
+              >
+                <Plane color="#FFFFFF" size={18} strokeWidth={2.5} />
+              </View>
+            </Marker>
           ))}
         </MapView>
       </View>
@@ -176,6 +210,15 @@ const styles = StyleSheet.create({
   },
   mapBase: {
     flex: 1,
+  },
+  marker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dialogBackdrop: {
     flex: 1,
