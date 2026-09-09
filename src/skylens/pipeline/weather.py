@@ -1,5 +1,15 @@
+"""Open-Meteo client: current conditions at each tracked airport."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
 import requests
-from datetime import datetime
+
+from skylens.config import settings
+from skylens.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Open-Meteo free API - no key needed
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
@@ -45,7 +55,9 @@ def fetch_weather(airport_code: str) -> dict:
         "timezone": "UTC"
     }
     try:
-        response = requests.get(WEATHER_URL, params=params, timeout=10)
+        response = requests.get(
+            WEATHER_URL, params=params, timeout=settings.http_timeout_seconds
+        )
         if response.status_code == 200:
             data = response.json()
             current = data["current"]
@@ -57,26 +69,43 @@ def fetch_weather(airport_code: str) -> dict:
                 "cloud_cover_pct": current.get("cloud_cover", 0),
                 "visibility_m": current.get("visibility", 10000),
                 "weather_code": current.get("weather_code", 0),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat(),
             }
-        else:
-            print(f"{airport_code}: weather API error {response.status_code}")
-            return {}
-    except Exception as e:
-        print(f"{airport_code}: {e}")
+        logger.warning(
+            "weather request failed",
+            extra={"airport": airport_code, "status_code": response.status_code},
+        )
         return {}
+    except Exception as e:
+        logger.warning(
+            "weather request errored", extra={"airport": airport_code, "error": str(e)}
+        )
+        return {}
+
 
 def fetch_all_weather() -> dict:
     weather = {}
     for airport in AIRPORT_COORDS:
         weather[airport] = fetch_weather(airport)
+    missing = [a for a, w in weather.items() if not w]
+    logger.info(
+        "weather sweep complete",
+        extra={"airports": len(AIRPORT_COORDS), "missing": len(missing)},
+    )
     return weather
 
+
 if __name__ == "__main__":
-    print("fetching live weather...")
-    weather = fetch_all_weather()
-    for airport, w in weather.items():
-        print(f"{airport}: wind={w.get('wind_speed_kn')}kn "
-              f"precip={w.get('precipitation_mm')}mm "
-              f"cloud={w.get('cloud_cover_pct')}% "
-              f"vis={w.get('visibility_m')}m")
+    from skylens.logging_config import configure_logging
+
+    configure_logging()
+    logger.info("fetching live weather...")
+    for airport, w in fetch_all_weather().items():
+        logger.info(
+            "%s: wind=%skn precip=%smm cloud=%s%% vis=%sm",
+            airport,
+            w.get("wind_speed_kn"),
+            w.get("precipitation_mm"),
+            w.get("cloud_cover_pct"),
+            w.get("visibility_m"),
+        )

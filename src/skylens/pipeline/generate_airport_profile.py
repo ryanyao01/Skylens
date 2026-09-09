@@ -1,14 +1,21 @@
-from pathlib import Path
+"""Offline: build the airport runtime profile consumed by the scorer.
+
+Development-only tooling. Requires the ``offline`` extra (polars) and the
+parquet files under ``data/clean``; the API never imports this module.
+"""
+
+from __future__ import annotations
+
 import json
 
 import polars as pl
 
+from skylens.config import settings
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "data" / "clean" / "airport_runtime_profile.json"
+OUT = settings.airport_profile_file
 
-model = pl.read_parquet(ROOT / "data" / "clean" / "model_ready.parquet")
-imbalance = pl.read_parquet(ROOT / "data" / "clean" / "imbalance_scores.parquet")
+model = pl.read_parquet(settings.clean_data_path / "model_ready.parquet")
+imbalance = pl.read_parquet(settings.clean_data_path / "imbalance_scores.parquet")
 
 hist_rows = (
     model.group_by(["DEST", "arr_hour", "day_of_week"])

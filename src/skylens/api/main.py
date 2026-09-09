@@ -1,32 +1,34 @@
-from datetime import datetime, timezone
+"""SkyLens HTTP API.
+
+Serves the current congestion score for every tracked airport, plus the delay
+cascade forecast. Scores are recomputed on a background scheduler and held in
+memory; requests always read the cache and never block on an upstream API.
+"""
+
+from __future__ import annotations
+
+import json
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.background import BackgroundScheduler
-from pathlib import Path
-import json
-import sys
-import os
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / "pipeline"))
+from skylens import __version__
+from skylens.config import settings
+from skylens.logging_config import configure_logging, get_logger
+from skylens.pipeline.cascade import load_propagation, run_all_cascades
+from skylens.pipeline.opensky import fetch_all_airport_counts, update_peak_observations
+from skylens.pipeline.scorer import compute_scores, load_models
+from skylens.pipeline.weather import fetch_all_weather
 
-from opensky import fetch_all_airport_counts, update_peak_observations
-from weather import fetch_all_weather
-from scorer import load_models, compute_scores
-from cascade import load_propagation, run_all_cascades
+# Configured at import time, not just in lifespan: uvicorn installs its own
+# logging during startup and emits its first lines before the lifespan hook
+# runs, so configuring here keeps the whole stream in one format.
+configure_logging()
 
-
-app = FastAPI(title="SkyLens API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+logger = get_logger(__name__)
 
 # airport coordinates for globe rendering
 AIRPORT_COORDS = {
@@ -91,16 +93,15 @@ AIRPORT_COORDS = {
 }
 
 # in-memory score cache
-score_cache = {}
-cascade_cache = {}
-last_refresh_at = None
-last_refresh_error = None
-models = None
-scheduler = None
-REFRESH_INTERVAL_SECONDS = int(os.getenv("SKYLENS_REFRESH_SECONDS", "900"))
-WRITE_RUNTIME_JSON = os.getenv("SKYLENS_WRITE_RUNTIME_JSON", "0") == "1"
+score_cache: dict = {}
+cascade_cache: dict = {}
+last_refresh_at: str | None = None
+last_refresh_error: str | None = None
+models: dict | None = None
+scheduler: BackgroundScheduler | None = None
 
-def refresh_scores():
+
+def refresh_scores() -> None:
     global score_cache, cascade_cache, last_refresh_at, last_refresh_error
     try:
         flight_counts = fetch_all_airport_counts()
@@ -112,41 +113,68 @@ def refresh_scores():
             coords = AIRPORT_COORDS.get(icao, {})
             scores[icao] = {**data, **coords}
         score_cache = scores
-        
+
         propagation = load_propagation()
         cascade_cache = run_all_cascades(scores, propagation)
-        if WRITE_RUNTIME_JSON:
-            cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
-            with open(cascade_path, "w") as f:
+        if settings.write_runtime_json:
+            settings.state_path.mkdir(parents=True, exist_ok=True)
+            with open(settings.cascade_forecast_file, "w", encoding="utf-8") as f:
                 json.dump(cascade_cache, f, indent=2)
-        
-        last_refresh_at = datetime.now(timezone.utc).isoformat()
+
+        last_refresh_at = datetime.now(UTC).isoformat()
         last_refresh_error = None
-        print(f"scores refreshed — {len(scores)} airports")
+        logger.info(
+            "scores refreshed",
+            extra={"airports": len(scores), "cascade_triggers": len(cascade_cache)},
+        )
     except Exception as e:
         last_refresh_error = str(e)
-        print(f"score refresh failed: {last_refresh_error}")
+        logger.exception("score refresh failed")
 
-@app.on_event("startup")
-def startup():
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Load models and start the refresh scheduler for the life of the process."""
     global models, scheduler
+
+    logger.info(
+        "starting SkyLens API",
+        extra={
+            "version": __version__,
+            "refresh_interval_s": settings.refresh_interval_seconds,
+            "models_path": str(settings.models_path),
+            "state_path": str(settings.state_path),
+        },
+    )
+    settings.state_path.mkdir(parents=True, exist_ok=True)
+
     models = load_models()
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         refresh_scores,
         "interval",
-        seconds=REFRESH_INTERVAL_SECONDS,
+        seconds=settings.refresh_interval_seconds,
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.now(timezone.utc),
+        next_run_time=datetime.now(UTC),
     )
     scheduler.start()
 
+    yield
 
-@app.on_event("shutdown")
-def shutdown():
+    logger.info("shutting down SkyLens API")
     if scheduler:
         scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="SkyLens API", version=__version__, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/airports/scores")
 def get_scores():
@@ -168,7 +196,7 @@ def health():
         "cascade_airports_cached": len(cascade_cache),
         "last_refresh_at": last_refresh_at,
         "last_refresh_error": last_refresh_error,
-        "refresh_interval_seconds": REFRESH_INTERVAL_SECONDS,
+        "refresh_interval_seconds": settings.refresh_interval_seconds,
     }
 
 @app.get("/forecast/cascade")

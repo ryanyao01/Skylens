@@ -1,34 +1,58 @@
+"""Combines live traffic, weather and the quantile models into airport scores."""
+
+from __future__ import annotations
+
 import json
 import pickle
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import numpy as np
 
-from opensky import extract_count, fetch_all_airport_counts, update_peak_observations
-from weather import fetch_all_weather
+from skylens.config import settings
+from skylens.logging_config import get_logger
+from skylens.pipeline.cascade import load_propagation, run_all_cascades
+from skylens.pipeline.opensky import (
+    extract_count,
+    fetch_all_airport_counts,
+    update_peak_observations,
+)
+from skylens.pipeline.weather import fetch_all_weather
 
-from cascade import load_propagation, run_all_cascades
+logger = get_logger(__name__)
 
-# Get the project root regardless of where script is run from.
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MODELS_DIR = PROJECT_ROOT / "models"
-PROFILE_PATH = PROJECT_ROOT / "data" / "clean" / "airport_runtime_profile.json"
+QUANTILES = ("q10", "q50", "q90")
 
 
-def load_models():
-    models = {}
-    for q in ["q10", "q50", "q90"]:
-        path = MODELS_DIR / f"xgb_{q}.pkl"
+def load_label_encoder() -> dict[str, int]:
+    """Load the airport -> integer mapping used as a model feature.
+
+    Stored as JSON rather than a pickled ``sklearn.LabelEncoder``. The encoder
+    was only ever a sorted-class lookup, so a plain dict reproduces it exactly
+    while removing scikit-learn (and scipy) from the runtime dependency set and
+    avoiding version-skew warnings when unpickling across sklearn releases.
+
+    Regenerate with ``python scripts/export_label_encoder.py`` after retraining.
+    """
+    with open(settings.label_encoder_file, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_models() -> dict:
+    models: dict = {}
+    for q in QUANTILES:
+        path = settings.models_path / f"xgb_{q}.pkl"
         with open(path, "rb") as f:
             models[q] = pickle.load(f)
-    with open(MODELS_DIR / "label_encoder.pkl", "rb") as f:
-        models["le"] = pickle.load(f)
+    models["le"] = load_label_encoder()
+    logger.info(
+        "models loaded",
+        extra={"quantiles": list(QUANTILES), "encoder_classes": len(models["le"])},
+    )
     return models
 
 
 def load_airport_profile() -> dict:
-    with open(PROFILE_PATH, encoding="utf-8") as f:
+    with open(settings.airport_profile_file, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -98,7 +122,7 @@ def compute_scores(
         peak_observations = {}
 
     profile = load_airport_profile()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     hour = now.hour
     minute = now.minute
     block = minute // 15
@@ -108,14 +132,14 @@ def compute_scores(
 
     scores = {}
     trained_airports = set(profile.get("trained_airports", []))
-    encoder_airports = set(models["le"].classes_)
+    encoder_airports = set(models["le"])
 
     for airport in airport_codes(profile):
         hist_mean = get_hist_mean(profile, airport, dow, hour)
         is_model_trained = airport in trained_airports and airport in encoder_airports
 
         if is_model_trained:
-            airport_enc = models["le"].transform([airport])[0]
+            airport_enc = models["le"][airport]
             features = np.array([[
                 hour,
                 block,
@@ -177,16 +201,26 @@ def compute_scores(
 
 
 
-if __name__ == "__main__":
-    print("loading models...")
+def main() -> None:
+    """Run one scoring pass offline and write the snapshot files.
+
+    Note this writes ``live_scores.json`` without coordinates; the API merges
+    those in at request time. The file is a debugging snapshot, not the source
+    the API serves from.
+    """
+    from skylens.logging_config import configure_logging
+
+    configure_logging()
+
+    logger.info("loading models...")
     models = load_models()
 
-    print("fetching live data...")
+    logger.info("fetching live data...")
     flight_counts = fetch_all_airport_counts()
     peak_observations = update_peak_observations(flight_counts)
     weather = fetch_all_weather()
 
-    print("computing scores...")
+    logger.info("computing scores...")
     scores = compute_scores(models, flight_counts, weather, peak_observations)
 
     print("\n--- live imbalance scores ---")
@@ -205,17 +239,23 @@ if __name__ == "__main__":
             f"wind={data['wind_kn']}kn"
         )
 
-    output_path = PROJECT_ROOT / "data" / "clean" / "live_scores.json"
-    with open(output_path, "w", encoding="utf-8") as f:
+    settings.state_path.mkdir(parents=True, exist_ok=True)
+    with open(settings.live_scores_file, "w", encoding="utf-8") as f:
         json.dump(scores, f, indent=2)
-    print(f"\nscores saved to {output_path}")
+    logger.info("scores saved", extra={"path": str(settings.live_scores_file)})
 
-
-    # cascade
     propagation = load_propagation()
     all_cascades = run_all_cascades(scores, propagation)
-
-    cascade_path = PROJECT_ROOT / "data" / "clean" / "cascade_forecast.json"
-    with open(cascade_path, "w") as f:
+    with open(settings.cascade_forecast_file, "w", encoding="utf-8") as f:
         json.dump(all_cascades, f, indent=2)
-    print(f"cascade saved — {len(all_cascades)} triggering airports")
+    logger.info(
+        "cascade saved",
+        extra={
+            "triggering_airports": len(all_cascades),
+            "path": str(settings.cascade_forecast_file),
+        },
+    )
+
+
+if __name__ == "__main__":
+    main()
