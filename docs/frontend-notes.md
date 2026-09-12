@@ -122,6 +122,40 @@ view always frames whatever the API actually sent.
 
 ---
 
+## New: forecast fields are now available (backwards compatible)
+
+The API now runs the trained quantile models at request time and ships five new
+fields. **Nothing you have breaks** — all 19 fields your `AirportInfo` interface
+declares are still there, unchanged. These are additions:
+
+```ts
+projected_score: number;      // score extrapolated one hour forward
+expected_arrivals: number;    // model's arrivals/15min for the current slot
+forecast_next_hour: {         // p10/p50/p90 are null when forecast_source is "historical"
+  p10: number | null;
+  p50: number | null;
+  p90: number | null;
+};
+demand_trend: "rising" | "falling" | "steady" | "unknown";
+forecast_source: "model" | "historical";   // 43 airports model, 15 historical
+```
+
+Ideas, if you want them:
+
+- **A trend arrow on the marker** — `demand_trend` is the cheapest possible win:
+  an up/down chevron next to the plane icon.
+- **`projected_score` in the callout** — "53 now, 61 expected within the hour"
+  reads as a forecast rather than a snapshot, which is the point of the project.
+- **The uncertainty band** — `forecast_next_hour.p10`–`p90` is a real confidence
+  interval from quantile regression. A small range bar would show it off.
+
+Note `forecast_source`: 15 airports (mostly international) have no trained model
+and return `"historical"` with `p10`/`p90` as `null`. Guard for that before
+rendering a band.
+
+
+---
+
 ## Coming later (will need coordination)
 
 - **Generated TypeScript types.** Once the API returns Pydantic response models,

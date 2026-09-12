@@ -81,6 +81,12 @@ def weather_penalty(w: dict) -> float:
     1.0 = perfect conditions, no penalty.
     0.5 = severe conditions, capacity halved.
     """
+    # A failed Open-Meteo call returns {}. Absent data must not be scored as bad
+    # weather: the visibility default of 10000m falls inside the "< 15000" band,
+    # so an empty dict would otherwise cost a 0.05 penalty and inflate the score.
+    if not w:
+        return 1.0
+
     penalty = 1.0
 
     wind = w.get("wind_speed_kn", 0)
@@ -112,6 +118,34 @@ def weather_penalty(w: dict) -> float:
     return max(penalty, 0.5)
 
 
+def _features(hour: int, block: int, dow: int, month: int, hist_mean: float, airport_enc: int):
+    """Feature row in the order the quantile models were trained on."""
+    return np.array([[hour, block, dow, month, 1 if dow >= 6 else 0, hist_mean, airport_enc]])
+
+
+def _predict(models: dict, quantile: str, *args) -> float:
+    return float(max(models[quantile].predict(_features(*args))[0], 0.0))
+
+
+def _next_hour_slot(dow: int, hour: int) -> tuple[int, int]:
+    """Advance one hour, rolling the day-of-week over at midnight."""
+    if hour < 23:
+        return dow, hour + 1
+    return (1 if dow == 7 else dow + 1), 0
+
+
+def _trend(now: float, later: float) -> str:
+    if now <= 0:
+        return "unknown"
+    change = (later - now) / now
+    if change > 0.10:
+        return "rising"
+    if change < -0.10:
+        return "falling"
+    return "steady"
+
+
+
 def compute_scores(
     models: dict,
     flight_counts: dict,
@@ -128,7 +162,6 @@ def compute_scores(
     block = minute // 15
     dow = now.weekday() + 1
     month = now.month
-    is_weekend = 1 if dow >= 6 else 0
 
     scores = {}
     trained_airports = set(profile.get("trained_airports", []))
@@ -138,20 +171,34 @@ def compute_scores(
         hist_mean = get_hist_mean(profile, airport, dow, hour)
         is_model_trained = airport in trained_airports and airport in encoder_airports
 
+        next_dow, next_hour = _next_hour_slot(dow, hour)
+        next_hist_mean = get_hist_mean(profile, airport, next_dow, next_hour)
+
         if is_model_trained:
+            # The q10/q50/q90 models predict arrivals per 15-minute slot. q50 for
+            # the current slot anchors capacity; the next-hour quantiles give a
+            # short-horizon demand forecast with an uncertainty band.
             airport_enc = models["le"][airport]
-            features = np.array([[
-                hour,
-                block,
-                dow,
-                month,
-                is_weekend,
-                hist_mean,
-                airport_enc,
-            ]])
-            pred_q50 = max(models["q50"].predict(features)[0], 0.5)
+            pred_q50 = max(
+                _predict(models, "q50", hour, block, dow, month, hist_mean, airport_enc),
+                0.5,
+            )
+            forecast = {
+                "p10": round(_predict(models, "q10", next_hour, 0, next_dow, month, next_hist_mean, airport_enc), 2),
+                "p50": round(_predict(models, "q50", next_hour, 0, next_dow, month, next_hist_mean, airport_enc), 2),
+                "p90": round(_predict(models, "q90", next_hour, 0, next_dow, month, next_hist_mean, airport_enc), 2),
+            }
+            forecast_source = "model"
         else:
+            # No trained model for this airport: fall back to the historical
+            # slot means, which carry no uncertainty band.
             pred_q50 = max(hist_mean, 0.5)
+            forecast = {
+                "p10": None,
+                "p50": round(max(next_hist_mean, 0.0), 2),
+                "p90": None,
+            }
+            forecast_source = "historical"
 
         w = weather.get(airport, {})
         penalty = weather_penalty(w)
@@ -168,6 +215,16 @@ def compute_scores(
         raw_score = (live_count / effective_peak) * 100
         score = min(round(raw_score, 1), 100)
 
+        # Project the current utilisation forward by the model's predicted change
+        # in demand over the next hour. Assumes live density scales with the
+        # arrival rate, which is the same assumption the denominator already makes.
+        forecast_p50 = forecast["p50"]
+        demand_trend = _trend(pred_q50, forecast_p50)
+        if pred_q50 > 0 and forecast_p50 is not None:
+            projected_score = min(round(score * (forecast_p50 / pred_q50), 1), 100.0)
+        else:
+            projected_score = score
+
         fallback_info = profile.get("fallback_airports", {}).get(airport)
         offline_peak = (
             fallback_info["peak_capacity"]
@@ -177,6 +234,11 @@ def compute_scores(
 
         scores[airport] = {
             "score": float(score),
+            "projected_score": float(projected_score),
+            "expected_arrivals": float(round(pred_q50, 2)),
+            "forecast_next_hour": forecast,
+            "demand_trend": demand_trend,
+            "forecast_source": forecast_source,
             "live_flights": int(live_count),
             "pred_capacity": float(round(adjusted_capacity, 2)),
             "hist_mean_arrivals": float(round(hist_mean, 2)),
