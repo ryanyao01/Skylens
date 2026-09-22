@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches the Dockerfile base image. Not 3.11: scipy (an xgboost dependency)
+  # publishes no cp311 wheel and would be built from source.
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install ruff==0.14.6
+      - name: ruff check
+        run: ruff check src scripts tests
+      - name: ruff format --check
+        run: ruff format --check src scripts tests
+        continue-on-error: true   # advisory until the tree is fully formatted
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install --no-deps -e .
+      - name: Run tests
+        # No secrets needed: every upstream call is stubbed.
+        run: pytest --cov=skylens --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: skylens-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Container starts and serves /health
+        run: |
+          docker run -d --name skylens-ci -p 8080:8080 \
+            -e OPENSKY_CLIENT_ID=ci -e OPENSKY_CLIENT_SECRET=ci \
+            skylens-api:ci
+          # The first scoring pass needs real upstream access, which CI has no
+          # credentials for, so assert the process boots and answers rather than
+          # waiting for status "ok".
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "API responded after ${i}0s"
+              curl -s http://localhost:8080/health
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "container never answered /health"
+          docker logs skylens-ci
+          exit 1
+      - name: Container logs
+        if: always()
+        run: docker logs skylens-ci || true

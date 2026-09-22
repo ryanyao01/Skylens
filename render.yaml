@@ -1,9 +1,36 @@
 services:
   - type: web
     name: skylens-api
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    # Deploying the Dockerfile keeps dev, CI and production on one identical
+    # image. To use Render's native Python runtime instead, swap `runtime` back
+    # to `python` and restore buildCommand/startCommand (commented below).
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # runtime: python
+    # buildCommand: pip install .
+    # startCommand: uvicorn skylens.api.main:app --host 0.0.0.0 --port $PORT
+    # envVars:
+    #   # NOT 3.11: scipy 1.18.1 (an xgboost dependency) publishes no cp311
+    #   # wheel, so 3.11 attempts a source build. 3.14 matches local dev.
+    #   - key: PYTHON_VERSION
+    #     value: 3.14.4
+
+    healthCheckPath: /health
+
+    # Learned peak observations are written at runtime. Without a persistent
+    # disk they reset on every deploy, which silently shifts every score as the
+    # denominator falls back from observed to baseline peaks.
+    disk:
+      name: skylens-state
+      mountPath: /var/lib/skylens
+      sizeGB: 1
+
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+      - key: SKYLENS_STATE_DIR
+        value: /var/lib/skylens
+      - key: SKYLENS_LOG_FORMAT
+        value: json
+      - key: OPENSKY_CLIENT_ID
+        sync: false
+      - key: OPENSKY_CLIENT_SECRET
+        sync: false

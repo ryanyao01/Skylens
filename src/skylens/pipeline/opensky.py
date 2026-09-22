@@ -1,80 +1,124 @@
-import requests
-import time
-from datetime import datetime
-from datetime import timedelta
+"""OpenSky Network client: live aircraft counts per airport bounding box."""
+
+from __future__ import annotations
+
 import json
-from pathlib import Path
-
 import os
-from dotenv import load_dotenv
+import threading
+import time
+from datetime import UTC, datetime, timedelta
 
-load_dotenv()
+import requests
+
+from skylens.config import settings
+from skylens.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
-CLIENT_ID = os.getenv("OPENSKY_CLIENT_ID")
-CLIENT_SECRET = os.getenv("OPENSKY_CLIENT_SECRET")
 TOKEN_REFRESH_MARGIN = 30  # seconds before expiration to refresh the token
 
+
 class TokenManager:
-    def __init__(self):
-        self.token = None
-        self.expires_at = None
+    """Caches an OAuth client-credentials token and refreshes it before expiry.
 
-    def get_token(self):
-        if self.token and self.expires_at and datetime.utcnow() < self.expires_at:
-            return self.token
-        return self._refresh()
+    Guarded by a lock because the API refreshes scores on a background
+    scheduler thread while requests are served on others.
+    """
 
-    def _refresh(self):
-        r = requests.post(
+    def __init__(self) -> None:
+        self.token: str | None = None
+        self.expires_at: datetime | None = None
+        self._lock = threading.Lock()
+
+    def get_token(self) -> str:
+        with self._lock:
+            if (
+                self.token
+                and self.expires_at
+                and datetime.now(UTC) < self.expires_at
+            ):
+                return self.token
+            return self._refresh()
+
+    def _refresh(self) -> str:
+        if not settings.opensky_client_id or not settings.opensky_client_secret:
+            raise RuntimeError(
+                "OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET must be set to reach OpenSky"
+            )
+        response = requests.post(
             TOKEN_URL,
             data={
                 "grant_type": "client_credentials",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
+                "client_id": settings.opensky_client_id,
+                "client_secret": settings.opensky_client_secret,
             },
+            timeout=settings.http_timeout_seconds,
         )
-        r.raise_for_status()
-        data = r.json()
+        response.raise_for_status()
+        data = response.json()
         self.token = data["access_token"]
         expires_in = data.get("expires_in", 1800)
-        self.expires_at = datetime.utcnow() + timedelta(seconds=expires_in - TOKEN_REFRESH_MARGIN)
+        self.expires_at = datetime.now(UTC) + timedelta(
+            seconds=expires_in - TOKEN_REFRESH_MARGIN
+        )
+        logger.info("opensky token refreshed", extra={"expires_in_s": expires_in})
         return self.token
 
-    def headers(self):
+    def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.get_token()}"}
 
 
 tokens = TokenManager()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OBSERVATIONS_PATH = PROJECT_ROOT / "data" / "clean" / "live_peak_observations.json"
+# Serializes the read-modify-write of the peak-observations file. This is a
+# stopgap: the file is process-local, so it does not protect against a second
+# worker. Moving this state into a database removes the constraint.
+_observations_lock = threading.Lock()
+
 
 def load_peak_observations() -> dict:
     try:
-        with open(OBSERVATIONS_PATH, encoding="utf-8") as f:
+        with open(settings.peak_observations_file, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
+    except json.JSONDecodeError:
+        logger.warning(
+            "peak observations file is corrupt; starting from empty",
+            extra={"path": str(settings.peak_observations_file)},
+        )
+        return {}
+
+
+def _write_peak_observations(observations: dict) -> None:
+    """Write atomically so a crash mid-write cannot truncate the file."""
+    path = settings.peak_observations_file
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(observations, f, indent=2)
+    os.replace(tmp, path)
+
 
 def update_peak_observations(counts: dict) -> dict:
-    observations = load_peak_observations()
-    metadata = counts.get("_metadata", {})
-    for airport, count in counts.items():
-        if airport == "timestamp" or airport.startswith("_"):
-            continue
-        status = metadata.get(airport, {}).get("status")
-        if status and status != "ok":
-            continue
-        count = extract_count(count)
-        if airport not in observations:
-            observations[airport] = {"peak": 0, "observations": 0}
-        if count > observations[airport]["peak"]:
-            observations[airport]["peak"] = count
-        observations[airport]["observations"] += 1
-    with open(OBSERVATIONS_PATH, "w", encoding="utf-8") as f:
-        json.dump(observations, f, indent=2)
-    return observations
+    with _observations_lock:
+        observations = load_peak_observations()
+        metadata = counts.get("_metadata", {})
+        for airport, count in counts.items():
+            if airport == "timestamp" or airport.startswith("_"):
+                continue
+            status = metadata.get(airport, {}).get("status")
+            if status and status != "ok":
+                continue
+            count = extract_count(count)
+            if airport not in observations:
+                observations[airport] = {"peak": 0, "observations": 0}
+            if count > observations[airport]["peak"]:
+                observations[airport]["peak"] = count
+            observations[airport]["observations"] += 1
+        _write_peak_observations(observations)
+        return observations
 
 OPENSKY_URL = "https://opensky-network.org/api/states/all"
 
@@ -159,10 +203,18 @@ def fetch_airport_state_count(airport_code: str) -> dict:
         "lomax": bounds[3],
     }
     try:
-        response = requests.get(OPENSKY_URL, params=params, headers=tokens.headers(), timeout=10)
+        response = requests.get(
+            OPENSKY_URL,
+            params=params,
+            headers=tokens.headers(),
+            timeout=settings.http_timeout_seconds,
+        )
         if response.status_code != 200:
             message = f"OpenSky API returned HTTP {response.status_code}"
-            print(f"{airport_code}: {message}")
+            logger.warning(
+                "opensky request failed",
+                extra={"airport": airport_code, "status_code": response.status_code},
+            )
             return {
                 "count": 0,
                 "status": "api_error",
@@ -190,34 +242,52 @@ def fetch_airport_state_count(airport_code: str) -> dict:
         }
     except Exception as e:
         message = str(e)
-        print(f"{airport_code}: {message}")
+        logger.warning(
+            "opensky request errored",
+            extra={"airport": airport_code, "error": message},
+        )
         return {
             "count": 0,
             "status": "network_error",
             "message": message,
         }
 
+
 def fetch_flights_near_airport(airport_code: str) -> int:
     return fetch_airport_state_count(airport_code)["count"]
+
 
 def fetch_all_airport_counts() -> dict:
     counts = {}
     metadata = {}
+    started = time.monotonic()
     for airport in AIRPORT_BOUNDS:
         result = fetch_airport_state_count(airport)
         counts[airport] = result["count"]
         metadata[airport] = {
-            key: value
-            for key, value in result.items()
-            if key != "count"
+            key: value for key, value in result.items() if key != "count"
         }
-        time.sleep(0.5)  # avoid rate limiting
-    counts["timestamp"] = datetime.utcnow().isoformat()
+        time.sleep(settings.opensky_request_delay_seconds)  # avoid rate limiting
+    counts["timestamp"] = datetime.now(UTC).isoformat()
     counts["_metadata"] = metadata
+
+    degraded = [a for a, m in metadata.items() if m.get("status") != "ok"]
+    logger.info(
+        "opensky sweep complete",
+        extra={
+            "airports": len(AIRPORT_BOUNDS),
+            "degraded": len(degraded),
+            "degraded_airports": degraded,
+            "elapsed_s": round(time.monotonic() - started, 1),
+        },
+    )
     return counts
 
+
 if __name__ == "__main__":
-    print("fetching live flight counts...")
-    counts = fetch_all_airport_counts()
-    for k, v in counts.items():
-        print(f"{k}: {v}")
+    from skylens.logging_config import configure_logging
+
+    configure_logging()
+    logger.info("fetching live flight counts...")
+    for code, value in fetch_all_airport_counts().items():
+        logger.info("%s: %s", code, value)

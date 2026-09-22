@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skylens"
+version = "0.1.0"
+description = "Live airport congestion scoring and delay-cascade forecasting"
+readme = "README.md"
+requires-python = ">=3.11"
+
+# Runtime dependencies only — what the API process actually imports.
+# Deliberately excluded, and why:
+#   scikit-learn   the label encoder is now JSON; XGBoost loads and predicts
+#                  with sklearn absent entirely (verified in a clean venv)
+#   networkx       propagation.pkl is a plain dict; route_graph.pkl (a DiGraph)
+#                  is only used by the training notebooks
+#   celery/redis   replaced by APScheduler in 9ad8d78
+#   polars         only the offline profile generator needs it
+# Note: scipy is still installed — it is a hard dependency of xgboost, not ours.
+dependencies = [
+    "fastapi==0.136.3",
+    "uvicorn==0.48.0",
+    "APScheduler==3.11.2",
+    "requests==2.34.2",
+    "numpy==2.4.6",
+    "xgboost==3.2.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "python-dotenv==1.2.2",
+]
+
+[project.optional-dependencies]
+# Regenerating data/clean/airport_runtime_profile.json from the parquet files.
+offline = [
+    "polars==1.41.2",
+    "networkx==3.6.1",
+    "scikit-learn==1.9.0",
+]
+dev = [
+    "pytest==9.0.1",
+    "pytest-cov==7.0.0",
+    "httpx==0.28.1",
+    "ruff==0.14.6",
+    "mypy==1.19.0",
+    "types-requests",
+]
+
+[project.scripts]
+skylens-score = "skylens.pipeline.scorer:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true

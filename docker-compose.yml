@@ -1,0 +1,55 @@
+# Local/production compose for the SkyLens API.
+#
+#   docker compose up --build
+#   curl http://localhost:8080/health
+#
+# Credentials come from .env (OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET), which
+# is gitignored and excluded from the image by .dockerignore.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: skylens-api:latest
+    container_name: skylens-api
+    restart: unless-stopped
+
+    # 8080 matches the frontend's EXPO_PUBLIC_API_URL default.
+    ports:
+      - "8080:8080"
+
+    env_file:
+      - .env
+
+    environment:
+      SKYLENS_LOG_FORMAT: json
+      SKYLENS_LOG_LEVEL: INFO
+      SKYLENS_REFRESH_SECONDS: "900"
+      # Lock this down to the app's real origins before exposing the API
+      # publicly; "*" is fine while it is only reachable on your LAN.
+      SKYLENS_CORS_ALLOW_ORIGINS: "*"
+
+    # Learned peak observations live here. Without this volume they reset on
+    # every container replacement and every airport's score shifts, because the
+    # score denominator falls back from "observed" to "baseline" peaks.
+    volumes:
+      - skylens-state:/var/lib/skylens
+
+    # No healthcheck block here on purpose: the image's own HEALTHCHECK already
+    # allows a 240s start period for the first scoring pass (58 OpenSky + 58
+    # weather calls). Overriding it here without a `test:` key would replace the
+    # image's definition rather than extend it.
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  skylens-state:
+
+# Next step, when the peak-observation state moves out of a JSON file:
+# add a `postgres` service here and point the API at it via DATABASE_URL. It is
+# deliberately absent for now — nothing in the code would connect to it yet.

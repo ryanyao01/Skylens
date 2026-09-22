@@ -1,12 +1,21 @@
-import pickle
-from pathlib import Path
+"""Delay-cascade simulation over the learned route propagation graph."""
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from __future__ import annotations
+
+import pickle
+
+from skylens.config import settings
+
+CASCADE_THRESHOLD = 65.0
 
 
 def load_propagation() -> dict:
-    path = PROJECT_ROOT / "models" / "propagation.pkl"
-    with open(path, "rb") as f:
+    """Load the airport -> {downstream: probability} propagation map.
+
+    The artifact is a plain nested dict, so this needs no third-party library
+    at import time.
+    """
+    with open(settings.models_path / "propagation.pkl", "rb") as f:
         return pickle.load(f)
 
 
@@ -14,7 +23,7 @@ def simulate_cascade(
     stressed_airport: str,
     current_scores: dict,
     propagation: dict,
-    threshold: float = 65.0,
+    threshold: float = CASCADE_THRESHOLD,
     hours_ahead: int = 6,
     decay: float = 0.6
 ) -> dict:
@@ -67,7 +76,7 @@ def run_all_cascades(scores: dict, propagation: dict) -> dict:
     all_cascades = {}
     for airport, data in scores.items():
         score = data["score"] if isinstance(data, dict) else 0
-        if score >= 65:
+        if score >= CASCADE_THRESHOLD:
             cascade = simulate_cascade(airport, scores, propagation)
             all_cascades[airport] = cascade
     return all_cascades

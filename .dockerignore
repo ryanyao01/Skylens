@@ -1,0 +1,44 @@
+# Keep the build context small. Without this, `docker build` uploads .git
+# (~118 MB), the local virtualenv, and ~100 MB of training parquet.
+
+.git/
+.gitignore
+.venv/
+venv/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Secrets never belong in an image layer — pass them as env vars at runtime.
+.env
+.env.*
+
+# Frontend is a separate deployable (Expo/EAS), not part of the API image.
+frontend/
+
+# Training and exploration artifacts.
+notebooks/
+.ipynb_checkpoints/
+docs/
+
+# Training data. The API only needs data/clean/airport_runtime_profile.json,
+# which is small; the parquet files are for offline retraining only.
+data/raw/
+data/processed/
+data/clean/*.parquet
+
+# Runtime state belongs on a mounted volume, not baked into the image.
+data/clean/live_peak_observations.json
+data/clean/live_scores.json
+data/clean/cascade_forecast.json
+
+# Local editor/tooling config.
+.vscode/
+.idea/
+*.md
+!README.md
