@@ -51,15 +51,24 @@ const interpolateColor = (
     .join(", ")})`;
 
 const getScoreColor = (score: number) => {
+  // A score of exactly 0 usually means no planes were found, which points to a data problem
+  if (score === 0) {
+    return "rgb(115, 115, 115)";
+  }
+
   const normalizedScore = Math.max(0, Math.min(score, 100)) / 100;
 
   if (normalizedScore <= 0.5) {
-    return interpolateColor([110, 20, 20], [245, 158, 11], normalizedScore * 2);
+    return interpolateColor(
+      [57, 255, 112],
+      [245, 158, 11],
+      normalizedScore * 2,
+    );
   }
 
   return interpolateColor(
     [245, 158, 11],
-    [57, 255, 112],
+    [110, 20, 20],
     (normalizedScore - 0.5) * 2,
   );
 };
@@ -146,6 +155,7 @@ export default function GlobeScreen() {
             latitudeDelta: 10,
             longitudeDelta: 10,
           }}
+          showsCompass={false}
         >
           {Object.entries(airportData).map(([code, airport]) => (
             <Marker
