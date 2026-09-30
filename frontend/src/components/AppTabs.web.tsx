@@ -9,6 +9,8 @@ import {
 import { Pressable, View, Text, StyleSheet } from "react-native";
 import { BookOpen, Globe, Scan, LucideIcon } from "lucide-react-native";
 
+import { colors } from "@/constants/theme";
+
 export default function AppTabs() {
   return (
     <Tabs>
@@ -40,7 +42,9 @@ export function TabButton({
   icon: Icon,
   ...props
 }: CustomTabButtonProps) {
-  const currentColor = isFocused ? "#FFFFFF" : "#737373";
+  const currentColor = isFocused
+    ? colors.tabBar.active
+    : colors.tabBar.inactive;
 
   return (
     <Pressable {...props} style={styles.tabButtonContainer}>
@@ -68,9 +72,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: "100%",
     height: 80,
-    backgroundColor: "#171717", // Cod Gray
+    backgroundColor: colors.tabBar.background,
     borderTopWidth: 1,
-    borderTopColor: "#262626", // Mine Shaft
+    borderTopColor: colors.tabBar.border,
     paddingHorizontal: 24,
     flexDirection: "row",
     justifyContent: "space-between",

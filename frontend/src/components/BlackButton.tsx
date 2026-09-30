@@ -7,6 +7,8 @@ import {
 } from "react-native";
 import { LucideIcon } from "lucide-react-native";
 
+import { colors } from "@/constants/theme";
+
 interface BlackButtonProps {
   icon?: LucideIcon;
   disabled?: boolean;
@@ -35,7 +37,9 @@ export const BlackButton: React.FC<BlackButtonProps> = ({
             pressed ? styles.pressedIconWrapper : styles.defaultIconWrapper,
           ]}
         >
-          {Icon && <Icon color="#FFFFFF" size={pressed ? 18 : 20} />}
+          {Icon && (
+            <Icon color={colors.text.primary} size={pressed ? 18 : 20} />
+          )}
         </View>
       )}
     </Pressable>
@@ -57,7 +61,7 @@ const styles = StyleSheet.create({
 
   // Default State
   defaultContainer: {
-    backgroundColor: "#262626",
+    backgroundColor: colors.button.secondary,
     paddingVertical: 12,
     paddingHorizontal: 14,
     width: 48,
@@ -70,7 +74,7 @@ const styles = StyleSheet.create({
 
   // Pressed State
   pressedContainer: {
-    backgroundColor: "#474747",
+    backgroundColor: colors.button.secondaryPressed,
     paddingVertical: 9,
     paddingHorizontal: 11,
     width: 40,

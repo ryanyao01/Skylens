@@ -5,6 +5,7 @@ import { Clock, MapPin, Share2 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { WhiteButton } from "@/components/WhiteButton";
 import { BlackButton } from "@/components/BlackButton";
+import { colors } from "@/constants/theme";
 
 interface AircraftCardProps {
   model: string;
@@ -36,7 +37,7 @@ export const AircraftCard: React.FC<AircraftCardProps> = ({
         <ImageBackground source={imageSource} style={styles.imageBackground}>
           {/* Dark gradient so the white text stays readable over bright photos */}
           <LinearGradient
-            colors={["rgba(23, 23, 23, 0)", "#171717"]}
+            colors={[colors.surface.transparent, colors.surface.base]}
             style={styles.gradientOverlay}
           />
 
@@ -58,11 +59,11 @@ export const AircraftCard: React.FC<AircraftCardProps> = ({
         {/* Row 1: Time and Location */}
         <View style={styles.infoRow}>
           <View style={styles.infoItem}>
-            <Clock color="#A1A1A1" size={16} strokeWidth={1.5} />
+            <Clock color={colors.text.secondary} size={16} strokeWidth={1.5} />
             <Text style={styles.infoText}>{dateStr}</Text>
           </View>
           <View style={styles.infoItem}>
-            <MapPin color="#A1A1A1" size={16} strokeWidth={1.5} />
+            <MapPin color={colors.text.secondary} size={16} strokeWidth={1.5} />
             <Text style={styles.infoText}>{location}</Text>
           </View>
         </View>
@@ -106,8 +107,8 @@ export const AircraftCard: React.FC<AircraftCardProps> = ({
 const styles = StyleSheet.create({
   // Card Core Structure
   cardContainer: {
-    backgroundColor: "#171717",
-    borderColor: "#262626",
+    backgroundColor: colors.surface.base,
+    borderColor: colors.border.subtle,
     borderWidth: 1,
     borderRadius: 24,
     overflow: "hidden", // Ensures the image doesn't bleed out of the rounded corners
@@ -131,25 +132,25 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   aircraftTitle: {
-    color: "#FFFFFF",
+    color: colors.text.primary,
     fontSize: 20,
     lineHeight: 25,
   },
   airlineText: {
-    color: "#00D3F2",
+    color: colors.text.accent,
     fontSize: 14,
     lineHeight: 20,
   },
   registrationBadge: {
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: colors.overlay.fillStrong,
+    borderColor: colors.overlay.border,
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 7,
     paddingHorizontal: 12,
   },
   registrationText: {
-    color: "rgba(255, 255, 255, 0.8)",
+    color: colors.overlay.text,
     fontSize: 12,
     // fontFamily: 'Consolas',
   },
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   infoText: {
-    color: "#A1A1A1",
+    color: colors.text.secondary,
     fontSize: 12,
   },
 
@@ -179,8 +180,8 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
-    borderColor: "#262626",
+    backgroundColor: colors.surface.inset,
+    borderColor: colors.border.subtle,
     borderWidth: 1,
     borderRadius: 14,
     height: 66,
@@ -189,12 +190,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   statLabel: {
-    color: "#737373",
+    color: colors.text.tertiary,
     fontSize: 12,
     marginBottom: 4,
   },
   statValue: {
-    color: "#FFFFFF",
+    color: colors.text.primary,
     fontSize: 14,
     // fontFamily: 'Consolas',
   },

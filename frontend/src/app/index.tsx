@@ -8,6 +8,7 @@ import {
 import { Scan } from "lucide-react-native";
 
 import { PictureButton } from "@/components/PictureButton";
+import { colors } from "@/constants/theme";
 
 export default function AirViewScreen() {
   return (
@@ -33,11 +34,7 @@ export default function AirViewScreen() {
           {/* Center Target Reticle */}
           <View style={styles.centerReticleContainer}>
             <View style={styles.targetBox}>
-              <Scan
-                color="rgba(255, 255, 255, 0.5)"
-                size={48}
-                strokeWidth={1.5}
-              />
+              <Scan color={colors.overlay.icon} size={48} strokeWidth={1.5} />
             </View>
 
             <View style={styles.instructionPill}>
@@ -61,7 +58,7 @@ const styles = StyleSheet.create({
   // Main Layout
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background.camera,
   },
   cameraBackground: {
     flex: 1,
@@ -82,15 +79,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   telemetryPill: {
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: colors.overlay.fill,
+    borderColor: colors.overlay.border,
     borderWidth: 1,
     borderRadius: 14,
     padding: 12,
     minWidth: 127,
   },
   telemetryText: {
-    color: "#00D3F2",
+    color: colors.text.accent,
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0.6,
@@ -99,8 +96,8 @@ const styles = StyleSheet.create({
   compassButton: {
     width: 42,
     height: 42,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: colors.overlay.fill,
+    borderColor: colors.overlay.border,
     borderWidth: 1,
     borderRadius: 21, // Half of width/height makes it a perfect circle
     justifyContent: "center",
@@ -116,7 +113,7 @@ const styles = StyleSheet.create({
   targetBox: {
     width: 256,
     height: 256,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: colors.overlay.borderStrong,
     borderWidth: 2,
     borderStyle: "dashed",
     borderRadius: 24,
@@ -125,13 +122,13 @@ const styles = StyleSheet.create({
   },
   instructionPill: {
     marginTop: 32,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: colors.overlay.fill,
     borderRadius: 50, // Creates a fully rounded pill
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   instructionText: {
-    color: "rgba(255, 255, 255, 0.8)",
+    color: colors.overlay.text,
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: 1.4,
@@ -146,14 +143,14 @@ const styles = StyleSheet.create({
   shutterOuter: {
     width: 85,
     height: 85,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderColor: "#FFFFFF",
+    backgroundColor: colors.shutter.fill,
+    borderColor: colors.shutter.border,
     borderWidth: 4,
     borderRadius: 42.5,
     justifyContent: "center",
     alignItems: "center",
     // Emulating the Figma box-shadow
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 25 },
     shadowOpacity: 0.25,
     shadowRadius: 25,
@@ -162,7 +159,7 @@ const styles = StyleSheet.create({
   shutterInner: {
     width: 56,
     height: 56,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.shutter.core,
     borderRadius: 28,
   },
 });

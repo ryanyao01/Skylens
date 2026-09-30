@@ -6,6 +6,8 @@ import {
   GestureResponderEvent,
 } from "react-native";
 
+import { colors } from "@/constants/theme";
+
 interface PictureButtonProps {
   onPress?: (event: GestureResponderEvent) => void;
 }
@@ -37,7 +39,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 4,
     borderRadius: 100,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 25 },
     shadowOpacity: 0.25,
     shadowRadius: 25,
@@ -51,25 +53,25 @@ const styles = StyleSheet.create({
   defaultOuter: {
     width: 85,
     height: 85,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderColor: "#FFFFFF",
+    backgroundColor: colors.shutter.fill,
+    borderColor: colors.shutter.border,
   },
   defaultInner: {
     width: 56,
     height: 56,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.shutter.core,
   },
 
   // Pressed State (Blue Tint)
   pressedOuter: {
     width: 85,
     height: 85,
-    backgroundColor: "rgba(66, 108, 235, 0.2)",
-    borderColor: "#426CEB",
+    backgroundColor: colors.shutter.fillPressed,
+    borderColor: colors.shutter.borderPressed,
   },
   pressedInner: {
     width: 56,
     height: 56,
-    backgroundColor: "#426CEB",
+    backgroundColor: colors.shutter.corePressed,
   },
 });

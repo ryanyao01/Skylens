@@ -6,6 +6,8 @@ import {
   GestureResponderEvent,
 } from "react-native";
 
+import { colors } from "@/constants/theme";
+
 interface WhiteButtonProps {
   text?: string;
   onPress?: (event: GestureResponderEvent) => void;
@@ -37,14 +39,14 @@ const styles = StyleSheet.create({
   },
   baseText: {
     // fontFamily: 'Segoe UI Symbol',
-    color: "#000000",
+    color: colors.button.primaryText,
     textAlign: "center",
     userSelect: "none",
   },
 
   // Default State
   defaultContainer: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.button.primary,
     paddingVertical: 12,
     paddingHorizontal: 50,
   },
@@ -55,7 +57,7 @@ const styles = StyleSheet.create({
 
   // Pressed State
   pressedContainer: {
-    backgroundColor: "#E6E6E6",
+    backgroundColor: colors.button.primaryPressed,
     transform: [{ scale: 0.93 }],
   },
 });

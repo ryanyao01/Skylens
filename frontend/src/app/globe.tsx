@@ -9,6 +9,7 @@ import {
 import { Search, Funnel, Plane, RefreshCw } from "lucide-react-native";
 import MapView, { Marker } from "react-native-maps";
 import { BlackButton } from "@/components/BlackButton";
+import { colors } from "@/constants/theme";
 import { useCallback, useEffect, useState } from "react";
 
 const API_BASE_URL = (
@@ -39,36 +40,41 @@ interface AirportInfo {
 
 type AirportData = Record<string, AirportInfo>;
 
-const interpolateColor = (
-  start: [number, number, number],
-  end: [number, number, number],
-  amount: number,
-) =>
-  `rgb(${start
+// Parses a 6-digit hex color into [r, g, b]
+const hexToRgb = (hex: string): [number, number, number] => {
+  const value = parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+};
+
+const interpolateColor = (startHex: string, endHex: string, amount: number) => {
+  const start = hexToRgb(startHex);
+  const end = hexToRgb(endHex);
+  return `rgb(${start
     .map((channel, index) =>
       Math.round(channel + (end[index] - channel) * amount),
     )
     .join(", ")})`;
+};
 
 const getScoreColor = (score: number) => {
   // A score of exactly 0 usually means no planes were found, which points to a data problem
   if (score === 0) {
-    return "rgb(115, 115, 115)";
+    return colors.congestion.noData;
   }
 
   const normalizedScore = Math.max(0, Math.min(score, 100)) / 100;
 
   if (normalizedScore <= 0.5) {
     return interpolateColor(
-      [57, 255, 112],
-      [245, 158, 11],
+      colors.congestion.low,
+      colors.congestion.moderate,
       normalizedScore * 2,
     );
   }
 
   return interpolateColor(
-    [245, 158, 11],
-    [110, 20, 20],
+    colors.congestion.moderate,
+    colors.congestion.high,
     (normalizedScore - 0.5) * 2,
   );
 };
@@ -170,7 +176,11 @@ export default function GlobeScreen() {
                   { backgroundColor: getScoreColor(airport.score) },
                 ]}
               >
-                <Plane color="#FFFFFF" size={18} strokeWidth={2.5} />
+                <Plane
+                  color={colors.text.primary}
+                  size={18}
+                  strokeWidth={2.5}
+                />
               </View>
             </Marker>
           ))}
@@ -182,11 +192,11 @@ export default function GlobeScreen() {
         <View style={styles.searchRow}>
           {/* Search Input Box */}
           <View style={styles.searchInputContainer}>
-            <Search color="#A1A1A1" size={20} strokeWidth={2} />
+            <Search color={colors.text.secondary} size={20} strokeWidth={2} />
             <TextInput
               style={styles.textInput}
               placeholder="Search flight"
-              placeholderTextColor="#737373"
+              placeholderTextColor={colors.text.tertiary}
               underlineColorAndroid="transparent"
             />
           </View>
@@ -216,7 +226,7 @@ export default function GlobeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: colors.background.base,
   },
   mapBase: {
     flex: 1,
@@ -225,14 +235,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: colors.marker.border,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
   dialogBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    backgroundColor: colors.overlay.scrim,
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -240,27 +250,27 @@ const styles = StyleSheet.create({
   dialog: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: "#171717",
-    borderColor: "#3A3A3A",
+    backgroundColor: colors.surface.base,
+    borderColor: colors.border.strong,
     borderWidth: 1,
     borderRadius: 16,
     padding: 24,
   },
   dialogTitle: {
-    color: "#FFFFFF",
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 8,
   },
   dialogMessage: {
-    color: "#A1A1A1",
+    color: colors.text.secondary,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 20,
   },
   dialogButton: {
     alignSelf: "flex-end",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.button.primary,
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -269,7 +279,7 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   dialogButtonText: {
-    color: "#0A0A0A",
+    color: colors.text.inverse,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -291,8 +301,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(23, 23, 23, 0.8)",
-    borderColor: "#262626",
+    backgroundColor: colors.surface.translucent,
+    borderColor: colors.border.subtle,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -300,7 +310,7 @@ const styles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    color: "#FFFFFF",
+    color: colors.text.primary,
     fontSize: 14,
     marginLeft: 12,
   },

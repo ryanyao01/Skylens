@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 
 import { AircraftCard } from "@/components/AircraftCard";
+import { colors } from "@/constants/theme";
 
 export default function DeepDiveScreen() {
   return (
@@ -52,7 +53,7 @@ const styles = StyleSheet.create({
   // Global Screen Styles
   screenContainer: {
     flex: 1,
-    backgroundColor: "#0A0A0A",
+    backgroundColor: colors.background.base,
   },
   scrollContent: {
     paddingTop: 48,
@@ -68,14 +69,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pageTitle: {
-    color: "#FFFFFF",
+    color: colors.text.primary,
     fontSize: 24,
     lineHeight: 32,
     letterSpacing: -0.6,
     // fontFamily: 'Segoe UI Symbol',
   },
   subtitle: {
-    color: "#A1A1A1",
+    color: colors.text.secondary,
     fontSize: 14,
     lineHeight: 20,
   },

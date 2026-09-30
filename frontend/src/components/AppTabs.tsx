@@ -1,17 +1,19 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
+import { colors } from "@/constants/theme";
+
 export default function AppTabs() {
   return (
     <NativeTabs
-      backgroundColor="#171717"
-      indicatorColor="#FFFFFF"
+      backgroundColor={colors.tabBar.background}
+      indicatorColor={colors.tabBar.indicator}
       labelStyle={{
-        default: { color: "#737373" },
-        selected: { color: "#FFFFFF" },
+        default: { color: colors.tabBar.inactive },
+        selected: { color: colors.tabBar.active },
       }}
       iconColor={{
-        default: "#737373",
-        selected: "#171717",
+        default: colors.tabBar.inactive,
+        selected: colors.tabBar.activeIcon,
       }}
       rippleColor="transparent"
     >
