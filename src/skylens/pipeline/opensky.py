@@ -65,6 +65,12 @@ class TokenManager:
         logger.info("opensky token refreshed", extra={"expires_in_s": expires_in})
         return self.token
 
+    def invalidate(self) -> None:
+        """Drop the cached token so the next request fetches a fresh one."""
+        with self._lock:
+            self.token = None
+            self.expires_at = None
+
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.get_token()}"}
 
@@ -194,92 +200,137 @@ def extract_count(value) -> int:
     return int(value or 0)
 
 
-def fetch_airport_state_count(airport_code: str) -> dict:
-    bounds = AIRPORT_BOUNDS[airport_code]
-    params = {
-        "lamin": bounds[0],
-        "lamax": bounds[1],
-        "lomin": bounds[2],
-        "lomax": bounds[3],
-    }
-    try:
-        response = requests.get(
-            OPENSKY_URL,
-            params=params,
-            headers=tokens.headers(),
-            timeout=settings.http_timeout_seconds,
-        )
-        if response.status_code != 200:
-            message = f"OpenSky API returned HTTP {response.status_code}"
-            logger.warning(
-                "opensky request failed",
-                extra={"airport": airport_code, "status_code": response.status_code},
+NO_STATES_MESSAGE = (
+    "OpenSky returned no aircraft inside this bounding box; this can mean true "
+    "inactivity or incomplete receiver coverage."
+)
+
+# One worldwide request is ~1.6 MB and takes a few seconds, so it gets more
+# headroom than the per-airport timeout.
+GLOBAL_TIMEOUT_S = 30
+MAX_ATTEMPTS = 3
+
+
+def _credits(response: requests.Response) -> int | None:
+    value = response.headers.get("X-Rate-Limit-Remaining")
+    return int(value) if value and value.lstrip("-").isdigit() else None
+
+
+def fetch_global_states() -> tuple[list | None, dict]:
+    """Fetch every aircraft OpenSky can see, in a single request.
+
+    Why one global call instead of one per airport: OpenSky meters usage in
+    credits, 4,000 a day. A bounding-box query costs 1 credit, so 58 airports
+    every 15 minutes is 5,568 credits a day -- the quota ran out after about 17
+    hours and every airport silently went to zero until midnight UTC. A
+    worldwide query costs 4 credits and returns the same aircraft; the boxes are
+    applied locally. 384 credits a day, and ~2 seconds instead of ~80.
+
+    Returns ``(states, info)``. ``states`` is None when the request failed, and
+    ``info["status"]`` says why.
+    """
+    info: dict = {"attempts": 0, "credits_remaining": None}
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        info["attempts"] = attempt
+        try:
+            response = requests.get(
+                OPENSKY_URL, headers=tokens.headers(), timeout=GLOBAL_TIMEOUT_S
             )
-            return {
-                "count": 0,
-                "status": "api_error",
-                "message": message,
-            }
+        except RuntimeError as e:  # credentials missing: retrying cannot help
+            info.update(status="config_error", message=str(e))
+            return None, info
+        except requests.RequestException as e:
+            info.update(status="network_error", message=str(e))
+        else:
+            info["credits_remaining"] = _credits(response)
+            if response.status_code == 200:
+                data = response.json()
+                info.update(status="ok", api_time=data.get("time"))
+                return data.get("states") or [], info
+            if response.status_code == 429:
+                # The daily quota is spent; retrying now cannot succeed.
+                wait = response.headers.get("X-Rate-Limit-Retry-After-Seconds")
+                info.update(
+                    status="rate_limited",
+                    message=f"OpenSky daily quota exhausted; resets in {wait}s",
+                )
+                return None, info
+            if response.status_code == 401:
+                tokens.invalidate()  # token rejected early: fetch a new one and retry
+            info.update(
+                status="api_error",
+                message=f"OpenSky returned HTTP {response.status_code}",
+            )
+            if 400 <= response.status_code < 500 and response.status_code != 401:
+                return None, info  # a client error will fail identically again
+        if attempt < MAX_ATTEMPTS:
+            delay = 2**attempt
+            logger.warning(
+                "opensky request failed, retrying",
+                extra={"attempt": attempt, "retry_in_s": delay, "status": info.get("status")},
+            )
+            time.sleep(delay)
+    return None, info
 
-        data = response.json()
-        states = data.get("states")
-        if states is None:
-            return {
-                "count": 0,
-                "status": "no_states",
-                "message": (
-                    "OpenSky returned no state vectors for this bounding box; "
-                    "this can mean true inactivity or incomplete receiver coverage."
-                ),
-                "api_time": data.get("time"),
-            }
 
-        return {
-            "count": len(states),
-            "status": "ok",
-            "message": "OpenSky returned state vectors for this bounding box.",
-            "api_time": data.get("time"),
-        }
-    except Exception as e:
-        message = str(e)
-        logger.warning(
-            "opensky request errored",
-            extra={"airport": airport_code, "error": message},
-        )
-        return {
-            "count": 0,
-            "status": "network_error",
-            "message": message,
-        }
+def count_aircraft_in_boxes(states: list) -> dict[str, int]:
+    """Count aircraft inside each airport's bounding box.
 
-
-def fetch_flights_near_airport(airport_code: str) -> int:
-    return fetch_airport_state_count(airport_code)["count"]
+    Boxes can overlap (JFK/LGA/EWR, ORD/MDW), so one aircraft may count toward
+    several airports -- the same result separate bounding-box queries gave.
+    """
+    counts = dict.fromkeys(AIRPORT_BOUNDS, 0)
+    boxes = list(AIRPORT_BOUNDS.items())
+    for state in states:
+        lon, lat = state[5], state[6]  # OpenSky state vector: index 5 lon, 6 lat
+        if lon is None or lat is None:
+            continue
+        for code, (lat_min, lat_max, lon_min, lon_max) in boxes:
+            if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
+                counts[code] += 1
+    return counts
 
 
 def fetch_all_airport_counts() -> dict:
-    counts = {}
-    metadata = {}
+    """Aircraft count and data status for every tracked airport.
+
+    Returns ``{code: count, ..., "timestamp": iso, "_metadata": {code: {...}},
+    "_run": {...}}``. ``_run`` describes the upstream request itself (credits
+    left, attempts, aircraft seen worldwide) and feeds the data-quality checks.
+    """
     started = time.monotonic()
-    for airport in AIRPORT_BOUNDS:
-        result = fetch_airport_state_count(airport)
-        counts[airport] = result["count"]
-        metadata[airport] = {
-            key: value for key, value in result.items() if key != "count"
-        }
-        time.sleep(settings.opensky_request_delay_seconds)  # avoid rate limiting
+    states, info = fetch_global_states()
+
+    counts: dict = {}
+    metadata: dict = {}
+    if states is None:
+        for code in AIRPORT_BOUNDS:
+            counts[code] = 0
+            metadata[code] = {"status": info["status"], "message": info.get("message", "")}
+    else:
+        for code, n in count_aircraft_in_boxes(states).items():
+            counts[code] = n
+            metadata[code] = {
+                "status": "ok" if n > 0 else "no_states",
+                "message": "Aircraft found inside the bounding box." if n > 0 else NO_STATES_MESSAGE,
+                "api_time": info.get("api_time"),
+            }
+
     counts["timestamp"] = datetime.now(UTC).isoformat()
     counts["_metadata"] = metadata
+    counts["_run"] = {
+        "source": "opensky_global",
+        "status": info["status"],
+        "attempts": info["attempts"],
+        "credits_remaining": info["credits_remaining"],
+        "aircraft_worldwide": len(states) if states is not None else None,
+        "elapsed_s": round(time.monotonic() - started, 2),
+    }
 
-    degraded = [a for a, m in metadata.items() if m.get("status") != "ok"]
+    degraded = sum(1 for m in metadata.values() if m["status"] != "ok")
     logger.info(
         "opensky sweep complete",
-        extra={
-            "airports": len(AIRPORT_BOUNDS),
-            "degraded": len(degraded),
-            "degraded_airports": degraded,
-            "elapsed_s": round(time.monotonic() - started, 1),
-        },
+        extra={**counts["_run"], "airports": len(AIRPORT_BOUNDS), "degraded": degraded},
     )
     return counts
 
@@ -288,6 +339,7 @@ if __name__ == "__main__":
     from skylens.logging_config import configure_logging
 
     configure_logging()
-    logger.info("fetching live flight counts...")
-    for code, value in fetch_all_airport_counts().items():
-        logger.info("%s: %s", code, value)
+    result = fetch_all_airport_counts()
+    logger.info("run: %s", result["_run"])
+    for code in AIRPORT_BOUNDS:
+        logger.info("%s: %s (%s)", code, result[code], result["_metadata"][code]["status"])

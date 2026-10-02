@@ -156,6 +156,25 @@ rendering a band.
 
 ---
 
+## Update (October): your colour fix, and two small notes
+
+The inverted ramp is fixed in `9e4f976` — thank you. Two follow-ups:
+
+- **Grey on `score === 0` vs `live_data_status`.** The zero check works most of
+  the time, but it greys out an airport that genuinely has no traffic and would
+  miss one where the upstream failed but a stale non-zero score was served. The
+  API's `live_data_status !== "ok"` is the exact signal. The web dashboard at
+  `/` (`src/skylens/web/index.html`, `scoreColor`) uses it if you want a
+  reference.
+- **New field `local_time`.** Every airport now carries its local wall-clock
+  time (`"2026-10-02T03:00-04:00"`), handy for a callout like "3:00 am local".
+
+The API also gained a web dashboard at `/` and history/analytics endpoints
+(`/analytics/history/{icao}` returns a 24-hour score series if you ever want a
+sparkline in the app). Nothing existing changed shape.
+
+---
+
 ## Coming later (will need coordination)
 
 - **Generated TypeScript types.** Once the API returns Pydantic response models,

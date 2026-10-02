@@ -17,9 +17,11 @@ services:
 
     healthCheckPath: /health
 
-    # Learned peak observations are written at runtime. Without a persistent
-    # disk they reset on every deploy, which silently shifts every score as the
-    # denominator falls back from observed to baseline peaks.
+    # The warehouse and learned peak observations live here. Without a
+    # persistent disk both reset on every deploy: history is lost and scores
+    # shift as the denominator falls back from observed to baseline peaks.
+    # Render attaches disks only to paid instance types (check current
+    # pricing); on the free tier, delete this block and accept the reset.
     disk:
       name: skylens-state
       mountPath: /var/lib/skylens

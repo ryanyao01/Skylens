@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 
+from skylens.airports import AIRPORTS
 from skylens.config import settings
 from skylens.logging_config import get_logger
 from skylens.pipeline.cascade import load_propagation, run_all_cascades
@@ -118,6 +119,12 @@ def weather_penalty(w: dict) -> float:
     return max(penalty, 0.5)
 
 
+def local_clock(airport: str, moment: datetime) -> datetime:
+    """``moment`` on the airport's wall clock, the clock the models learned."""
+    ref = AIRPORTS.get(airport)
+    return ref.local_time(moment) if ref else moment
+
+
 def _features(hour: int, block: int, dow: int, month: int, hist_mean: float, airport_enc: int):
     """Feature row in the order the quantile models were trained on."""
     return np.array([[hour, block, dow, month, 1 if dow >= 6 else 0, hist_mean, airport_enc]])
@@ -151,23 +158,25 @@ def compute_scores(
     flight_counts: dict,
     weather: dict,
     peak_observations: dict | None = None,
+    now: datetime | None = None,
 ) -> dict:
     if peak_observations is None:
         peak_observations = {}
 
     profile = load_airport_profile()
-    now = datetime.now(UTC)
-    hour = now.hour
-    minute = now.minute
-    block = minute // 15
-    dow = now.weekday() + 1
-    month = now.month
+    now = now or datetime.now(UTC)
 
     scores = {}
     trained_airports = set(profile.get("trained_airports", []))
     encoder_airports = set(models["le"])
 
     for airport in airport_codes(profile):
+        # The models were trained on BTS scheduled-arrival times, which are on the
+        # airport's LOCAL clock. Feeding UTC here was a training/serving skew that
+        # shifted every forecast by the airport's UTC offset (4-8 hours in the US).
+        local = local_clock(airport, now)
+        hour, block, dow, month = local.hour, local.minute // 15, local.isoweekday(), local.month
+
         hist_mean = get_hist_mean(profile, airport, dow, hour)
         is_model_trained = airport in trained_airports and airport in encoder_airports
 
@@ -254,6 +263,7 @@ def compute_scores(
             "live_data_status": live_metadata.get("status", "unknown"),
             "live_data_message": live_metadata.get("message", ""),
             "timestamp": now.isoformat(),
+            "local_time": local.isoformat(timespec="minutes"),
         }
         if fallback_info:
             scores[airport]["fallback_note"] = fallback_info["note"]

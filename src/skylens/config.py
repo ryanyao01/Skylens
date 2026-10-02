@@ -60,13 +60,13 @@ class Settings(BaseSettings):
     write_runtime_json: bool = Field(
         default=False, validation_alias="SKYLENS_WRITE_RUNTIME_JSON"
     )
+    warehouse_enabled: bool = Field(
+        default=True, validation_alias="SKYLENS_WAREHOUSE_ENABLED"
+    )
 
     # --- upstream APIs ---------------------------------------------------
     http_timeout_seconds: float = Field(
         default=10.0, gt=0, validation_alias="SKYLENS_HTTP_TIMEOUT"
-    )
-    opensky_request_delay_seconds: float = Field(
-        default=0.5, ge=0, validation_alias="SKYLENS_OPENSKY_DELAY"
     )
 
     # --- service ---------------------------------------------------------
@@ -132,6 +132,11 @@ class Settings(BaseSettings):
     @property
     def live_scores_file(self) -> Path:
         return self.state_path / "live_scores.json"
+
+    @property
+    def warehouse_file(self) -> Path:
+        """DuckDB file holding every run's history. Lives on the state volume."""
+        return self.state_path / "skylens.duckdb"
 
     @property
     def label_encoder_file(self) -> Path:

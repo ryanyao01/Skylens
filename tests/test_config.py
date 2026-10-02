@@ -59,7 +59,6 @@ def test_cors_defaults_to_wildcard_when_unset():
         ("SKYLENS_REFRESH_SECONDS", "900"),
         ("SKYLENS_WRITE_RUNTIME_JSON", "1"),
         ("SKYLENS_HTTP_TIMEOUT", "10"),
-        ("SKYLENS_OPENSKY_DELAY", "0.5"),
         ("SKYLENS_LOG_LEVEL", "DEBUG"),
         ("SKYLENS_LOG_FORMAT", "json"),
         ("SKYLENS_MODELS_DIR", "/app/models"),

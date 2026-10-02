@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 
 from skylens.pipeline.opensky import extract_count
-from skylens.pipeline.scorer import _next_hour_slot, _trend, compute_scores
+from skylens.pipeline.scorer import (
+    _next_hour_slot,
+    _trend,
+    compute_scores,
+    get_hist_mean,
+    load_airport_profile,
+    local_clock,
+)
 
 REQUIRED_FIELDS = {
     "score", "projected_score", "expected_arrivals", "forecast_next_hour",
@@ -115,3 +124,40 @@ def test_degraded_airports_are_still_scored_and_flagged(models, flight_counts, w
     d = compute_scores(models, counts, weather, peak_observations)["PVG"]
     assert d["live_data_status"] == "no_states"
     assert d["score"] == 0.0
+
+
+# ---------------------------------------------------------------- local time
+
+# 07:00 UTC on Friday 2 Oct 2026 is 03:00 in Atlanta (EDT, UTC-4).
+FRIDAY_0700_UTC = datetime(2026, 10, 2, 7, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("airport", "hour", "dow"),
+    [("ATL", 3, 5), ("LAX", 0, 5), ("PHX", 0, 5), ("HND", 16, 5), ("LHR", 8, 5), ("SYD", 17, 5)],
+)
+def test_local_clock_uses_each_airports_time_zone(airport, hour, dow):
+    local = local_clock(airport, FRIDAY_0700_UTC)
+    assert (local.hour, local.isoweekday()) == (hour, dow)
+
+
+def test_local_clock_crosses_the_date_line():
+    late = datetime(2026, 10, 2, 18, 0, tzinfo=UTC)  # Friday evening UTC
+    assert local_clock("HND", late).isoweekday() == 6  # already Saturday in Tokyo
+
+
+def test_model_features_use_local_time_not_utc(models, flight_counts, weather, peak_observations):
+    """Regression for training/serving skew.
+
+    The models were trained on BTS CRS_ARR_TIME, which is LOCAL time. The scorer
+    used to feed UTC, so at 03:00 in Atlanta it looked up 07:00 history and
+    forecast the morning rush in the middle of the night.
+    """
+    profile = load_airport_profile()
+    d = compute_scores(models, flight_counts, weather, peak_observations, now=FRIDAY_0700_UTC)["ATL"]
+
+    local_slot = get_hist_mean(profile, "ATL", 5, 3)
+    utc_slot = get_hist_mean(profile, "ATL", 5, 7)
+    assert local_slot != utc_slot, "fixture must discriminate between the two clocks"
+    assert d["hist_mean_arrivals"] == pytest.approx(round(local_slot, 2))
+    assert d["local_time"].startswith("2026-10-02T03:00")
